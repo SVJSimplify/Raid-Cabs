@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/mappls-api/:path*",
+      "destination": "https://apis.mappls.com/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
