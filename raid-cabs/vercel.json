@@ -1,20 +1,15 @@
 {
-  "rewrites": [
+  "routes": [
     {
-      "source": "/mappls-api/:path*",
-      "destination": "https://apis.mappls.com/:path*"
+      "src": "/mappls-api/(.*)",
+      "dest": "https://apis.mappls.com/$1"
     },
     {
-      "source": "/:path*",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
+      "handle": "filesystem"
+    },
     {
-      "source": "/assets/:path*",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
