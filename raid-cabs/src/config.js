@@ -4,4 +4,4 @@
 // Do NOT use: admin, ops, dashboard, panel, control, manage
 // After changing this, push to GitHub and Vercel will redeploy automatically.
 // ─────────────────────────────────────────────────────────────────────────────
-export const OPS_PATH = 'rc-fleet-ops'
+export const OPS_PATH = 'k9f3j2l8'
