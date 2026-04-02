@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, ENV_OK } from '../lib/supabase'
 
 const Ctx = createContext(null)
 
@@ -7,21 +7,16 @@ export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [profileError, setProfileError] = useState(null)
 
   const fetchProfile = useCallback(async uid => {
-    setProfileError(null)
-    const { data, error } = await supabase
-      .from('profiles').select('*').eq('id', uid).maybeSingle()  // maybeSingle won't 406 if no row
-    if (error) {
-      console.error('[profile fetch]', error)
-      setProfileError(error.message)
-    }
+    const { data } = await supabase
+      .from('profiles').select('*').eq('id', uid).maybeSingle()
     setProfile(data)
     setLoading(false)
   }, [])
 
   useEffect(() => {
+    if (!ENV_OK) { setLoading(false); return }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
@@ -35,39 +30,43 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [fetchProfile])
 
-  // ── Phone OTP ────────────────────────────────────────────────────────────
   async function sendPhoneOtp(phone) {
-    const { data, error } = await supabase.auth.signInWithOtp({ phone })
-    if (error) console.error('[sendPhoneOtp]', error)
-    return { data, error }
+    return supabase.auth.signInWithOtp({ phone })
   }
 
   async function verifyPhoneOtp(phone, token) {
-    const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' })
-    if (error) console.error('[verifyPhoneOtp]', error)
-    return { data, error }
+    return supabase.auth.verifyOtp({ phone, token, type: 'sms' })
   }
 
-  // ── Email auth ────────────────────────────────────────────────────────────
+  async function signInWithEmailOtp(email) {
+    return supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    })
+  }
+
+  async function verifyEmailOtp(email, token) {
+    return supabase.auth.verifyOtp({ email, token, type: 'email' })
+  }
+
   async function signUp({ email, password, fullName, phone }) {
-    const { data, error } = await supabase.auth.signUp({
-      email, password,
+    return supabase.auth.signUp({
+      email,
+      password,
       options: { data: { full_name: fullName, phone } },
     })
-    return { data, error }
   }
 
   async function signIn({ email, password }) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      if (error.message?.includes('Email not confirmed'))
-        error.message = 'Email not confirmed. Disable "Confirm email" in Supabase → Auth → Settings.'
-      if (error.message?.includes('Invalid login'))
-        error.message = 'Wrong email or password.'
-      if (error.message?.includes('400'))
-        error.message = 'Login failed (400). Check credentials or disable email confirmation in Supabase.'
+    const result = await supabase.auth.signInWithPassword({ email, password })
+    if (result.error) {
+      const m = result.error.message || ''
+      if (m.includes('Email not confirmed'))
+        result.error.message = 'Email not confirmed. Use Email OTP login instead, or contact admin.'
+      if (m.includes('Invalid login credentials'))
+        result.error.message = 'Wrong email or password.'
     }
-    return { data, error }
+    return result
   }
 
   async function signOut() {
@@ -87,7 +86,7 @@ export function AuthProvider({ children }) {
   const isAdmin = profile?.role === 'admin'
 
   return (
-    <Ctx.Provider value={{ user, profile, loading, profileError, isAdmin, sendPhoneOtp, verifyPhoneOtp, signUp, signIn, signOut, fetchProfile, updateProfile, updatePassword }}>
+    <Ctx.Provider value={{ user, profile, loading, isAdmin, fetchProfile, sendPhoneOtp, verifyPhoneOtp, signInWithEmailOtp, verifyEmailOtp, signUp, signIn, signOut, updateProfile, updatePassword }}>
       {children}
     </Ctx.Provider>
   )
