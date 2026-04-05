@@ -28,22 +28,27 @@ export async function getRouteInfo(origin, dest) {
     if (res.ok) {
       const data = await res.json()
       if (!data.fallback && data.distanceKm) {
+        // Add 25% buffer to ORS duration for Indian traffic conditions
+        const bufferedMins = Math.ceil(data.durationMins * 1.25)
         return {
           distKm:    data.distanceKm,
-          tripMins:  Math.max(3, data.durationMins),
-          driverEta: Math.ceil(3 + Math.random() * 7),
+          tripMins:  Math.max(5, bufferedMins),
+          driverEta: Math.ceil(8 + Math.random() * 12), // 8-20 mins
           source:    'ors',
           geometry:  data.geometry,
         }
       }
     }
   } catch {}
-  // Fallback: haversine × 1.40 road factor
-  const km = +(haversineKm(origin, dest) * 1.40).toFixed(1)
+  // Fallback: haversine × 1.45 road factor (Indian roads wind more)
+  const km = +(haversineKm(origin, dest) * 1.45).toFixed(1)
+  // Realistic Hyderabad speed: ~20 km/h in city traffic = 0.333 km/min
+  // Add 15% buffer for signals, turns, traffic
+  const rawMins = Math.ceil((km / 0.333) * 1.15)
   return {
     distKm:    km,
-    tripMins:  Math.max(3, Math.ceil(km / 0.45)),
-    driverEta: Math.ceil(3 + Math.random() * 7),
+    tripMins:  Math.max(5, rawMins),  // minimum 5 mins even for short distances
+    driverEta: Math.ceil(8 + Math.random() * 12), // realistic: 8-20 mins for driver to arrive
     source:    'estimate',
     geometry:  null,
   }
