@@ -12,7 +12,7 @@ const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || ''
 // Dark style — identical look to Mapbox dark-v11
 // Falls back to OpenFreeMap if no Maptiler key
 const STYLE = MAPTILER_KEY
-  ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
+  ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${MAPTILER_KEY}`
   : 'https://tiles.openfreemap.org/styles/dark'
 
 // ── Marker elements ───────────────────────────────────────────────────────────
