@@ -96,7 +96,7 @@ function PendingRidesPanel({ drivers, load }) {
   const loadRides = React.useCallback(() => {
     setLoading(true)
     q(() => supabase.from('bookings')
-      .select('*,profiles(full_name,phone,email,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone)')
+      .select('*,profiles:user_id(full_name,phone,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone)')
       .in('status', ['pending_admin','confirmed','in_progress'])
       .order('scheduled_at', { ascending:true })
     ).then(({ data }) => { setRides(data||[]); setLoading(false) })
@@ -426,7 +426,7 @@ function SosAlertsPanel() {
   const [alerts, setAlerts] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   useEffect(() => {
-    q(() => supabase.from('sos_alerts').select('*,profiles(full_name,phone,emergency_contact_name,emergency_contact_phone),drivers(name,phone,vehicle_number)').order('created_at',{ascending:false}).limit(30))
+    q(() => supabase.from('sos_alerts').select('*,profiles:user_id(full_name,phone,emergency_contact_name,emergency_contact_phone),drivers:driver_id(name,phone,vehicle_number)').order('created_at',{ascending:false}).limit(30))
       .then(({data}) => { setAlerts(data||[]); setLoading(false) })
   }, [])
   const resolve = async id => {
@@ -485,8 +485,8 @@ export default function OpsDashboard() {
       q(() => supabase.from('discount_tiers').select('*').order('sort_order')),
       q(() => supabase.from('drivers').select('*').eq('is_approved',true).order('created_at',{ascending:false})),
       q(() => supabase.from('drivers').select('*').eq('is_approved',false).order('created_at',{ascending:false})),
-      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,final_fare,status,created_at,user_id,driver_id,profiles!bookings_user_id_fkey(full_name),drivers(name)').order('created_at',{ascending:false}).limit(60)),
-      q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id,profiles!deposits_user_id_fkey(full_name,phone)').order('created_at',{ascending:false}).limit(60)),
+      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,drop_address,final_fare,discount_amount,status,created_at,scheduled_at,user_id,driver_id,drivers(name,vehicle_number)').order('created_at',{ascending:false}).limit(60)),
+      q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('profiles').select('*').order('created_at',{ascending:false})),
     ])
     setData({ tiers:t.data||[], drivers:d.data||[], pendingDrivers:pd.data||[], bookings:b.data||[], deposits:dep.data||[], users:u.data||[] })
@@ -812,8 +812,8 @@ export default function OpsDashboard() {
                 <tbody>
                   {deposits.map(d => (
                     <tr key={d.id}>
-                      <td style={{ fontWeight:600 }}>{d.profiles?.full_name||'—'}</td>
-                      <td style={{ color:'#9890c2', fontSize:'.8rem' }}>{d.profiles?.phone||'—'}</td>
+                      <td style={{ fontWeight:600 }}>{users.find(u=>u.id===d.user_id)?.full_name||'—'}</td>
+                      <td style={{ color:'#9890c2', fontSize:'.8rem' }}>{users.find(u=>u.id===d.user_id)?.phone||'—'}</td>
                       <td style={{ color:'#ffb347', fontWeight:700 }}>₹{Number(d.amount).toLocaleString()}</td>
                       <td><span className="ops-badge" style={{ background:'rgba(255,179,71,.12)', color:'#ffb347', border:'1px solid rgba(255,179,71,.25)' }}>{d.discount_applied||0}%</span></td>
                       <td style={{ color:'#504c74', fontSize:'.76rem', fontFamily:'monospace' }}>{d.payment_ref||'—'}</td>
@@ -900,7 +900,7 @@ export default function OpsDashboard() {
                   {bookings.map(b => (
                     <tr key={b.id}>
                       <td style={{ fontFamily:'monospace', fontSize:'.76rem', color:'#9890c2' }}>{b.receipt_number||'—'}</td>
-                      <td style={{ fontWeight:600 }}>{b.profiles?.full_name||'—'}</td>
+                      <td style={{ fontWeight:600 }}>{users.find(u=>u.id===b.user_id)?.full_name||'—'}</td>
                       <td style={{ color:'#9890c2', fontSize:'.8rem', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.pickup_address}</td>
                       <td style={{ color:'#ffb347', fontWeight:700 }}>₹{b.final_fare}</td>
                       <td style={{ color:'#9890c2', fontSize:'.83rem' }}>{b.drivers?.name||<span style={{ color:'#e74c3c' }}>None</span>}</td>
