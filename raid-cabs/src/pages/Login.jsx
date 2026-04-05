@@ -196,27 +196,44 @@ export default function Login() {
     const { user: fbUser, error } = await verifySmsOtp(smsConf, code)
     if (error) { toast.error(error.message); setSmsOtp(Array(6).fill('')); smsRefs.current[0]?.focus(); setLoading(false); return }
 
-    // Firebase verified — now sign into Supabase with phone+password pattern
-    // For SMS-verified users, we use phone as email and Firebase UID as password seed
+    // Firebase verified — sign into Supabase using phone-derived credentials
     const digits    = phone.replace(/\D/g, '').slice(-10)
     const fakeEmail = `${digits}@raidcabs.local`
     const fakePw    = `sms_${fbUser.uid.slice(0, 16)}`
 
-    // Try sign in first, if not found register
-    let { error: signinErr } = await signIn({ email: fakeEmail, password: fakePw })
-    if (signinErr) {
-      const { error: signupErr } = await signUp({
-        email: fakeEmail, password: fakePw,
-        fullName: name || `User ${digits.slice(-4)}`,
-        phone: digits,
-      })
-      if (signupErr && !signupErr.message?.includes('already registered')) {
-        toast.error(signupErr.message); setLoading(false); return
-      }
-      // Sign in after register
-      await signIn({ email: fakeEmail, password: fakePw })
+    // Try sign in first (existing user)
+    const { error: signinErr } = await signIn({ email: fakeEmail, password: fakePw })
+    if (!signinErr) {
+      toast.success('Welcome back! 🎉')
+      navigate('/dashboard')
+      setLoading(false)
+      return
     }
-    toast.success('Signed in with SMS OTP! 🎉')
+
+    // Sign in failed — register new user
+    const { error: signupErr } = await signUp({
+      email: fakeEmail, password: fakePw,
+      fullName: name || `User ${digits.slice(-4)}`,
+      phone: digits,
+    })
+
+    if (signupErr) {
+      // 422 = email already exists but wrong password (different Firebase UID)
+      // Shouldn't happen in practice since UID is tied to phone number
+      toast.error('Account issue — please try Email OTP login instead.')
+      setLoading(false)
+      return
+    }
+
+    // Sign in after registration
+    const { error: finalErr } = await signIn({ email: fakeEmail, password: fakePw })
+    if (finalErr) {
+      toast.error('Registered but could not sign in — check your Supabase email confirmation setting.')
+      setLoading(false)
+      return
+    }
+
+    toast.success('Account created! 🎉')
     navigate('/dashboard')
     setLoading(false)
   }
