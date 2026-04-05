@@ -4,6 +4,7 @@ import { OPS_PATH } from '../config'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, q } from '../lib/supabase'
+import LiveMap from '../components/LiveMap'
 import { LogOut, RefreshCw, Plus, Pencil, Trash2, Check, X, CheckCircle, XCircle, AlertTriangle, BarChart2, Car, CreditCard, Package, Users, Settings, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -87,11 +88,13 @@ function ApproveDriverBtn({ driver: d, onDone }) {
 
 
 function PendingRidesPanel({ drivers, load }) {
-  const [rides,   setRides]   = React.useState([])
-  const [loading, setLoading] = React.useState(true)
-  const [selRide, setSelRide] = React.useState(null)
-  const [selDrv,  setSelDrv]  = React.useState('')
-  const [assigning, setAsg]   = React.useState(false)
+  const [rides,      setRides]   = React.useState([])
+  const [loading,    setLoading] = React.useState(true)
+  const [selRide,    setSelRide] = React.useState(null)
+  const [selDrv,     setSelDrv]  = React.useState('')
+  const [assigning,  setAsg]     = React.useState(false)
+  const [mapRide,    setMapRide] = React.useState(null)   // booking shown in map modal
+  const [driverPos,  setDrvPos]  = React.useState(null)
 
   const loadRides = React.useCallback(() => {
     setLoading(true)
@@ -104,14 +107,30 @@ function PendingRidesPanel({ drivers, load }) {
 
   useEffect(() => { loadRides() }, [loadRides])
 
-  // Realtime subscription for new bookings
   useEffect(() => {
     const ch = supabase.channel('admin-bookings')
       .on('postgres_changes', { event:'*', schema:'public', table:'bookings' },
-        () => loadRides()
-      ).subscribe()
+        () => loadRides()).subscribe()
     return () => supabase.removeChannel(ch)
   }, [loadRides])
+
+  // Live driver GPS tracking for map modal
+  useEffect(() => {
+    if (!mapRide?.driver_id) { setDrvPos(null); return }
+    let alive = true
+    const poll = async () => {
+      const { data } = await supabase.from('drivers')
+        .select('current_lat,current_lng').eq('id', mapRide.driver_id).maybeSingle()
+      if (alive && data?.current_lat) setDrvPos({ lat: parseFloat(data.current_lat), lng: parseFloat(data.current_lng) })
+    }
+    poll()
+    const iv = setInterval(poll, 5000)
+    const ch = supabase.channel(`admin-drv-${mapRide.driver_id}`)
+      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'drivers', filter:`id=eq.${mapRide.driver_id}` },
+        ({ new:d }) => { if (alive && d.current_lat) setDrvPos({ lat:parseFloat(d.current_lat), lng:parseFloat(d.current_lng) }) })
+      .subscribe()
+    return () => { alive=false; clearInterval(iv); supabase.removeChannel(ch) }
+  }, [mapRide?.driver_id])
 
   const availDrvs = (drivers||[]).filter(d => d.status==='available' && d.is_approved)
 
@@ -190,17 +209,57 @@ function PendingRidesPanel({ drivers, load }) {
               </div>
 
               {/* Assign driver */}
-              {isPending && (
-                <div style={{display:'flex',gap:'.5rem',alignItems:'center',flexShrink:0}}>
+              <div style={{display:'flex',gap:'.5rem',alignItems:'center',flexShrink:0,flexWrap:'wrap'}}>
+                {b.pickup_lat && (
+                  <button onClick={()=>{setMapRide(b);setDrvPos(null)}}
+                    style={{background:'rgba(59,130,246,.1)',border:'1px solid rgba(59,130,246,.25)',color:'#60a5fa',borderRadius:6,padding:'4px 10px',fontSize:'.75rem',fontWeight:700,cursor:'pointer',fontFamily:"'Nunito',sans-serif"}}>
+                    🗺 Live Map
+                  </button>
+                )}
+                {isPending && (
                   <button className="ops-btn ops-btn-g" onClick={()=>{setSelRide(b);setSelDrv('')}}>
                     Assign Driver
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )
       })}
+
+      {/* Live Map Modal */}
+      {mapRide && (
+        <div className="overlay" onClick={()=>setMapRide(null)}>
+          <div style={{background:'#0e0e20',border:'1px solid rgba(255,255,255,.1)',borderRadius:20,padding:'1.5rem',maxWidth:680,width:'100%',maxHeight:'90vh',overflow:'auto'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
+              <div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:'1rem',color:'#ede8d8'}}>
+                  Live Map — {users.find(u=>u.id===mapRide.user_id)?.full_name||'Passenger'}
+                </div>
+                <div style={{fontSize:'.78rem',color:'#504c74',marginTop:2}}>
+                  {mapRide.pickup_address?.split(',')[0]} → {mapRide.drop_address?.split(',')[0]}
+                  {driverPos && <span style={{color:'var(--green)',marginLeft:8}}>● Driver GPS live</span>}
+                </div>
+              </div>
+              <button onClick={()=>setMapRide(null)} style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,width:32,height:32,cursor:'pointer',fontFamily:"'Nunito',sans-serif",fontSize:'1.1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+            </div>
+            <LiveMap
+              adminMode
+              userPos={mapRide.pickup_lat ? { lat:parseFloat(mapRide.pickup_lat), lng:parseFloat(mapRide.pickup_lng) } : null}
+              driverPos={driverPos}
+              dropPos={mapRide.drop_lat ? { lat:parseFloat(mapRide.drop_lat), lng:parseFloat(mapRide.drop_lng), label:mapRide.drop_address||'Destination' } : null}
+              height={380}
+              liveLabel={driverPos ? '🟢 Driver GPS live' : null}
+            />
+            <div style={{display:'flex',gap:'1rem',marginTop:'1rem',fontSize:'.8rem',color:'#504c74',flexWrap:'wrap'}}>
+              <span>📍 Pickup: {mapRide.pickup_address}</span>
+              <span>🏁 Drop: {mapRide.drop_address}</span>
+              {!driverPos && mapRide.driver_id && <span style={{color:'var(--gold)'}}>⏳ Waiting for driver to go online…</span>}
+              {!mapRide.driver_id && <span style={{color:'var(--gold)'}}>⚠ No driver assigned yet</span>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assign Driver Modal */}
       {selRide && (
