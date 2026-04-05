@@ -1,6 +1,6 @@
 // ─── Location, Geocoding & Routing ────────────────────────────────────────
 // All free services, no API key required.
-// Geocoding: Nominatim (OpenStreetMap) — biased to the IIT Hyderabad area
+// Geocoding: Nominatim (OpenStreetMap) — biased to IIT Hyderabad area
 // Routing ETA: Haversine × 1.40 road factor
 
 // IIT Hyderabad bounding box — Nominatim prioritizes results in this area
@@ -17,60 +17,42 @@ export function haversineKm(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x))
 }
 
-// ORS (OpenRouteService) — free 2000 req/day, real Indian road routing
-// Sign up at openrouteservice.org for free API key
-// Without key, falls back to haversine estimate automatically
-const ORS_KEY = import.meta.env.VITE_ORS_KEY || ''
+// Routing via Mapbox Directions API (proxied through /api/route)
 
 export async function getRouteInfo(origin, dest) {
-  // Try ORS for real road distance + ETA
-  if (ORS_KEY) {
-    try {
-      // Call via server proxy to avoid CORS block
-      const res = await fetch(
-        `/api/route?start=${origin.lng},${origin.lat}&end=${dest.lng},${dest.lat}`,
-        { signal: AbortSignal.timeout(8000) }
-      )
-      if (res.ok) {
-        const data = await res.json()
-        if (data.fallback) { /* key not set server-side, fall through */ }
-        else {
-          const seg = data?.features?.[0]?.properties?.segments?.[0]
-          if (seg) {
-            const km   = +(seg.distance / 1000).toFixed(1)
-            const mins = Math.ceil(seg.duration / 60)
-            return { distKm: km, tripMins: Math.max(3, mins), driverEta: Math.ceil(3 + Math.random()*7), source:'ors' }
-          }
+  try {
+    const res = await fetch(
+      `/api/route?startLng=${origin.lng}&startLat=${origin.lat}&endLng=${dest.lng}&endLat=${dest.lat}`,
+      { signal: AbortSignal.timeout(8000) }
+    )
+    if (res.ok) {
+      const data = await res.json()
+      if (!data.fallback && data.distanceKm) {
+        return {
+          distKm:    data.distanceKm,
+          tripMins:  Math.max(3, data.durationMins),
+          driverEta: Math.ceil(3 + Math.random() * 7),
+          source:    'mapbox',
+          geometry:  data.geometry,
         }
       }
-    } catch { /* fall through to haversine */ }
-  }
+    }
+  } catch {}
   // Fallback: haversine × 1.40 road factor
-  const straight = haversineKm(origin, dest)
-  const km       = +(straight * 1.40).toFixed(1)
+  const km = +(haversineKm(origin, dest) * 1.40).toFixed(1)
   return {
     distKm:    km,
     tripMins:  Math.max(3, Math.ceil(km / 0.45)),
     driverEta: Math.ceil(3 + Math.random() * 7),
     source:    'estimate',
+    geometry:  null,
   }
 }
 
-// Get actual route geometry for drawing on map (ORS)
+// Get actual route geometry (returns GeoJSON LineString or null)
 export async function getRouteGeometry(origin, dest) {
-  if (!ORS_KEY) return null
-  try {
-    const res = await fetch(
-      `/api/route?start=${origin.lng},${origin.lat}&end=${dest.lng},${dest.lat}`,
-      { signal: AbortSignal.timeout(8000) }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    if (data.fallback) return null
-    const coords = data?.features?.[0]?.geometry?.coordinates
-    if (!coords) return null
-    return { type:'LineString', coordinates: coords }
-  } catch { return null }
+  const info = await getRouteInfo(origin, dest)
+  return info.geometry || null
 }
 
 // ─── Fare ─────────────────────────────────────────────────────────────────
