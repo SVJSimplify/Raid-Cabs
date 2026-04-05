@@ -17,7 +17,7 @@ export function haversineKm(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x))
 }
 
-// Routing via Mapbox Directions API (proxied through /api/route)
+// Routing via OpenRouteService (proxied through /api/route to avoid CORS)
 
 export async function getRouteInfo(origin, dest) {
   try {
@@ -32,7 +32,7 @@ export async function getRouteInfo(origin, dest) {
           distKm:    data.distanceKm,
           tripMins:  Math.max(3, data.durationMins),
           driverEta: Math.ceil(3 + Math.random() * 7),
-          source:    'mapbox',
+          source:    'ors',
           geometry:  data.geometry,
         }
       }
