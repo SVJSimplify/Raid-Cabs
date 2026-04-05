@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { Car, MapPin, History, CreditCard, ChevronRight, Navigation, LayoutDashboard, User } from 'lucide-react'
 import RatingPrompt from '../components/RatingPrompt'
 
-const SC = { confirmed:'var(--green)', in_progress:'var(--gold)', completed:'var(--blue)', cancelled:'var(--red)' }
+const SC = { pending_admin:'var(--gold)', confirmed:'var(--green)', in_progress:'#3b82f6', completed:'var(--tm)', cancelled:'var(--red)' }
 
 function BottomNav() {
   const location = useLocation()
@@ -28,6 +28,7 @@ export default function Dashboard() {
   const location  = useLocation()
   const [stats,   setStats]   = useState({ trips:0, savings:0, active:0, spent:0 })
   const [recent,  setRecent]  = useState([])
+  const [allBk,   setAllBk]   = useState([])
   const [loading, setLd]      = useState(true)
   const [drivers, setDrivers] = useState(0)
   const [unrated, setUnrated] = useState(null)
@@ -53,10 +54,11 @@ export default function Dashboard() {
         .eq('status','available').eq('is_approved',true),
     ]).then(([{data:bk},{count}]) => {
       setRecent(bk||[])
+      setAllBk(bk||[])
       setStats({
         trips:    bk?.length||0,
         savings:  bk?.reduce((s,b)=>s+(b.discount_amount||0),0)||0,
-        active:   bk?.filter(b=>['confirmed','in_progress'].includes(b.status)).length||0,
+        active:   bk?.filter(b=>['pending_admin','confirmed','in_progress'].includes(b.status)).length||0,
         spent:    bk?.filter(b=>b.status==='completed').reduce((s,b)=>s+(b.final_fare||0),0)||0,
       })
       setDrivers(count||0)
@@ -194,7 +196,7 @@ export default function Dashboard() {
         {!loading && recent.map((b, i) => (
           <div key={b.id} className="fu" style={{ animationDelay:`${i*.05}s`, display:'flex', alignItems:'center', gap:'.85rem', padding:'.75rem 0', borderBottom: i<recent.length-1?'1px solid var(--b1)':'none' }}>
             <div style={{ width:38, height:38, borderRadius:10, background: b.status==='completed'?'rgba(0,200,150,.1)':b.status==='cancelled'?'rgba(255,71,87,.1)':'rgba(245,166,35,.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'1.1rem' }}>
-              {b.status==='completed'?'✅':b.status==='cancelled'?'❌':'🔄'}
+              {b.status==='completed'?'✅':b.status==='cancelled'?'❌':b.status==='pending_admin'?'⏳':'🚗'}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontWeight:600, fontSize:'.88rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
@@ -208,7 +210,7 @@ export default function Dashboard() {
             <div style={{ textAlign:'right', flexShrink:0 }}>
               <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>₹{b.final_fare}</div>
               <span className="badge" style={{ fontSize:'.6rem', background:`${SC[b.status]||'var(--tm)'}18`, color:SC[b.status]||'var(--tm)', border:`1px solid ${SC[b.status]||'var(--tm)'}33` }}>
-                {b.status}
+                {b.status==='pending_admin'?'Pending Admin':b.status.replace('_',' ')}
               </span>
             </div>
           </div>
