@@ -215,7 +215,7 @@ export default function BookCab() {
                     <div className="input-wrap">
                       <Search size={15} className="ico"/>
                       <input ref={pickupRef} className="input" type="text" name="pickup" autoComplete="off"
-                        placeholder="Where should we pick you up?" value={pickup}
+                        placeholder="e.g. Hostel A Main Entrance, Gate 2…" value={pickup}
                         onChange={handlePickupInput}
                         onFocus={() => setShowSugs(true)}
                         onBlur={() => setTimeout(() => setShowSugs(false), 180)}
@@ -229,7 +229,10 @@ export default function BookCab() {
                     {locating ? <span className="spinner" style={{ width:13,height:13 }}/> : <Navigation size={13}/>}
                     {locating ? 'Detecting…' : 'Use My Location'}
                   </button>
-                  {userPos && <p style={{ fontSize:'.73rem', color:'var(--green)', display:'flex', alignItems:'center', gap:4, marginTop:'.35rem' }}><CheckCircle size={11}/> Pickup pinned</p>}
+                  <p className="hint" style={{ marginTop:'.35rem' }}>
+      Be specific — include building name, gate number, or landmark so your driver can find you easily.
+    </p>
+  {userPos && <p style={{ fontSize:'.73rem', color:'var(--green)', display:'flex', alignItems:'center', gap:4, marginTop:'.2rem' }}><CheckCircle size={11}/> Location pinned on map</p>}
                 </div>
 
                 {/* DROP — fully searchable */}
