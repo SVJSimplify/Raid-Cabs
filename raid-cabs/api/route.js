@@ -1,6 +1,7 @@
 // GET /api/route?startLng=&startLat=&endLng=&endLat=
-// Server-side proxy for Mapbox Directions API (avoids CORS)
-// VITE_MAPBOX_TOKEN must be in Vercel env vars
+// Proxies OpenRouteService Directions API (avoids CORS)
+// VITE_ORS_KEY must be in Vercel env vars
+// Sign up free at openrouteservice.org (email only, 2000 req/day)
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -8,28 +9,27 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   const { startLng, startLat, endLng, endLat } = req.query
-  if (!startLng || !startLat || !endLng || !endLat) {
+  if (!startLng || !startLat || !endLng || !endLat)
     return res.status(400).json({ error: 'startLng, startLat, endLng, endLat required' })
-  }
 
-  const token = process.env.VITE_MAPBOX_TOKEN
-  if (!token) return res.status(200).json({ fallback: true, reason: 'no token' })
+  const key = process.env.VITE_ORS_KEY
+  if (!key) return res.status(200).json({ fallback: true, reason: 'no key' })
 
   try {
-    const coords = `${startLng},${startLat};${endLng},${endLat}`
-    const url    = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&steps=false&access_token=${token}`
-
-    const r = await fetch(url, { headers: { Accept: 'application/json' } })
-    if (!r.ok) return res.status(200).json({ fallback: true, reason: `mapbox ${r.status}` })
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${key}&start=${startLng},${startLat}&end=${endLng},${endLat}`
+    const r   = await fetch(url, { headers: { Accept: 'application/json' } })
+    if (!r.ok) return res.status(200).json({ fallback: true, reason: `ors ${r.status}` })
 
     const data = await r.json()
-    if (!data.routes?.length) return res.status(200).json({ fallback: true, reason: 'no routes' })
+    const seg  = data?.features?.[0]?.properties?.segments?.[0]
+    const geo  = data?.features?.[0]?.geometry
 
-    const route = data.routes[0]
+    if (!seg) return res.status(200).json({ fallback: true, reason: 'no route' })
+
     return res.status(200).json({
-      geometry: route.geometry,                       // GeoJSON LineString
-      distanceKm: +(route.distance / 1000).toFixed(1),
-      durationMins: Math.ceil(route.duration / 60),
+      geometry:    geo,
+      distanceKm:  +(seg.distance / 1000).toFixed(1),
+      durationMins: Math.ceil(seg.duration / 60),
     })
   } catch (err) {
     return res.status(200).json({ fallback: true, reason: err.message })
