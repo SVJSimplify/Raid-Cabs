@@ -1,6 +1,6 @@
 // ─── Location, Geocoding & Routing ────────────────────────────────────────
 // All free services, no API key required.
-// Geocoding: Nominatim (OpenStreetMap) — biased to IIT Hyderabad area
+// Geocoding: Nominatim (OpenStreetMap) — biased to the IIT Hyderabad area
 // Routing ETA: Haversine × 1.40 road factor
 
 // IIT Hyderabad bounding box — Nominatim prioritizes results in this area
@@ -26,17 +26,21 @@ export async function getRouteInfo(origin, dest) {
   // Try ORS for real road distance + ETA
   if (ORS_KEY) {
     try {
+      // Call via server proxy to avoid CORS block
       const res = await fetch(
-        `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_KEY}&start=${origin.lng},${origin.lat}&end=${dest.lng},${dest.lat}`,
-        { signal: AbortSignal.timeout(5000), headers: { 'Accept': 'application/json' } }
+        `/api/route?start=${origin.lng},${origin.lat}&end=${dest.lng},${dest.lat}`,
+        { signal: AbortSignal.timeout(8000) }
       )
       if (res.ok) {
         const data = await res.json()
-        const seg  = data?.features?.[0]?.properties?.segments?.[0]
-        if (seg) {
-          const km      = +(seg.distance / 1000).toFixed(1)
-          const mins    = Math.ceil(seg.duration / 60)
-          return { distKm: km, tripMins: Math.max(3, mins), driverEta: Math.ceil(3 + Math.random()*7), source:'ors' }
+        if (data.fallback) { /* key not set server-side, fall through */ }
+        else {
+          const seg = data?.features?.[0]?.properties?.segments?.[0]
+          if (seg) {
+            const km   = +(seg.distance / 1000).toFixed(1)
+            const mins = Math.ceil(seg.duration / 60)
+            return { distKm: km, tripMins: Math.max(3, mins), driverEta: Math.ceil(3 + Math.random()*7), source:'ors' }
+          }
         }
       }
     } catch { /* fall through to haversine */ }
@@ -57,15 +61,15 @@ export async function getRouteGeometry(origin, dest) {
   if (!ORS_KEY) return null
   try {
     const res = await fetch(
-      `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_KEY}&start=${origin.lng},${origin.lat}&end=${dest.lng},${dest.lat}`,
-      { signal: AbortSignal.timeout(5000), headers: { 'Accept': 'application/json' } }
+      `/api/route?start=${origin.lng},${origin.lat}&end=${dest.lng},${dest.lat}`,
+      { signal: AbortSignal.timeout(8000) }
     )
     if (!res.ok) return null
-    const data   = await res.json()
+    const data = await res.json()
+    if (data.fallback) return null
     const coords = data?.features?.[0]?.geometry?.coordinates
     if (!coords) return null
-    // ORS returns [lng,lat] — convert to {lat,lng} array for MapLibre GeoJSON
-    return { type:'LineString', coordinates: coords } // already [lng,lat] format for MapLibre
+    return { type:'LineString', coordinates: coords }
   } catch { return null }
 }
 
