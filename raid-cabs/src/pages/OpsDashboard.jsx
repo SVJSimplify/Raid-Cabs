@@ -93,13 +93,25 @@ function PendingRidesPanel({ drivers, load }) {
   const [selDrv,  setSelDrv]  = React.useState('')
   const [assigning, setAsg]   = React.useState(false)
 
-  useEffect(() => {
+  const loadRides = React.useCallback(() => {
+    setLoading(true)
     q(() => supabase.from('bookings')
       .select('*,profiles(full_name,phone,email,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone)')
       .in('status', ['pending_admin','confirmed','in_progress'])
       .order('scheduled_at', { ascending:true })
     ).then(({ data }) => { setRides(data||[]); setLoading(false) })
   }, [])
+
+  useEffect(() => { loadRides() }, [loadRides])
+
+  // Realtime subscription for new bookings
+  useEffect(() => {
+    const ch = supabase.channel('admin-bookings')
+      .on('postgres_changes', { event:'*', schema:'public', table:'bookings' },
+        () => loadRides()
+      ).subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [loadRides])
 
   const availDrvs = (drivers||[]).filter(d => d.status==='available' && d.is_approved)
 
@@ -124,11 +136,14 @@ function PendingRidesPanel({ drivers, load }) {
 
   return (
     <div className="ops-card">
-      <div style={{fontWeight:700,fontSize:'1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:8}}>
+      <div style={{fontWeight:700,fontSize:'1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         📋 Pending & Active Ride Requests
         <span style={{background:'rgba(245,166,35,.12)',color:'var(--gold)',border:'1px solid rgba(245,166,35,.22)',borderRadius:99,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>
           {rides.filter(r=>r.status==='pending_admin').length} pending
         </span>
+        <button onClick={loadRides} style={{marginLeft:'auto',background:'rgba(255,255,255,.04)',border:'1px solid var(--b1)',color:'var(--ts)',borderRadius:6,padding:'3px 10px',fontSize:'.75rem',cursor:'pointer',fontFamily:"'Nunito',sans-serif",display:'flex',alignItems:'center',gap:4}} disabled={loading}>
+          {loading?<span style={{width:10,height:10,border:'1.5px solid rgba(255,255,255,.2)',borderTopColor:'var(--gold)',borderRadius:'50%',animation:'spin .65s linear infinite',display:'inline-block'}}/>:'↻'} Refresh
+        </button>
       </div>
 
       {loading && <div style={{color:'#504c74',textAlign:'center',padding:'2rem'}}>Loading…</div>}
