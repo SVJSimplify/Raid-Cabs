@@ -111,6 +111,17 @@ export default function LiveMap({
     map.addControl(new maplibregl.AttributionControl({ compact:true }), 'bottom-right')
     map.addControl(new maplibregl.NavigationControl({ showCompass:false }), 'top-right')
     map.on('load', () => { readyRef.current = true })
+
+    // Silence "wood-pattern" missing image warning from OpenFreeMap tile style
+    // This is a bug in their sprite sheet — not fixable from our side
+    map.on('styleimagemissing', (e) => {
+      // Add a 1x1 transparent placeholder so MapLibre stops complaining
+      if (!map.hasImage(e.id)) {
+        const empty = new ImageData(new Uint8ClampedArray(4), 1, 1)
+        map.addImage(e.id, empty)
+      }
+    })
+
     mapRef.current = map
     return () => {
       readyRef.current = false
