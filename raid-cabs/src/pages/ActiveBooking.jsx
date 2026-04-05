@@ -172,7 +172,7 @@ export default function ActiveBooking() {
       const res = await supabase.from('bookings')
         .select('*,drivers(*)')
         .eq('user_id', user.id)
-        .in('status', ['confirmed','in_progress','completed'])
+        .in('status', ['pending_admin','confirmed','in_progress','completed'])
         .order('created_at', { ascending:false })
         .limit(1)
         .maybeSingle()
@@ -320,6 +320,7 @@ export default function ActiveBooking() {
   const isCompleted  = booking?.status === 'completed'
   const isInProgress = booking?.status === 'in_progress'
   const isConfirmed  = booking?.status === 'confirmed'
+  const isPending    = booking?.status === 'pending_admin'
   const driverArrived= isConfirmed && countdown !== null && countdown <= 0
 
   if (loading) return (
@@ -343,17 +344,26 @@ export default function ActiveBooking() {
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:'.85rem' }}>
             <div style={{ fontSize:'2.5rem', flexShrink:0 }}>
-              {isCompleted ? '✅' : isInProgress ? '🚗' : driverArrived ? '🎉' : '⏳'}
+              {isCompleted ? '✅' : isInProgress ? '🚗' : isPending ? '📋' : driverArrived ? '🎉' : '⏳'}
             </div>
             <div style={{ flex:1 }}>
               <h1 className="h2" style={{ marginBottom:'.25rem' }}>
-                {isCompleted ? 'Trip Completed' : isInProgress ? 'Ride in Progress' : driverArrived ? 'Driver Arrived!' : 'Driver On The Way'}
+                {isCompleted ? 'Trip Completed' : isInProgress ? 'Ride in Progress' : isPending ? 'Waiting for Admin' : driverArrived ? 'Driver Arrived!' : 'Driver On The Way'}
               </h1>
               <span className={`badge ${isCompleted?'b-green':isInProgress?'b-gold':'b-green'}`}>
                 {booking.status.replace('_',' ')}
               </span>
             </div>
           </div>
+
+          {/* Pending admin message */}
+          {isPending && (
+            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
+              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Admin is reviewing your booking</div>
+              <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>You'll be notified once a driver is assigned</div>
+              <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.4rem' }}>Scheduled for: {booking?.scheduled_at ? new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
+            </div>
+          )}
 
           {/* Countdown */}
           {isConfirmed && countdown !== null && countdown > 0 && (
