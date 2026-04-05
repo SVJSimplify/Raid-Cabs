@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, q } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { getRouteInfo, getRouteGeometry, searchPlaces, reverseGeocode, calcFare, calcConcession, searchCampusPlaces, CAMPUS_PLACES } from '../lib/location'
+import { getRouteInfo, searchPlaces, reverseGeocode, calcFare, calcConcession, searchCampusPlaces, CAMPUS_PLACES } from '../lib/location'
 import LiveMap from '../components/LiveMap'
 import { ArrowLeft, MapPin, Navigation, CheckCircle, Zap, X, Search, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -52,14 +52,14 @@ export default function BookCab() {
       .then(({ data }) => { if (data) setFareRate({ rate_per_km: data.rate_per_km, minimum_fare: data.minimum_fare }) })
   }, [])
 
-  // Live fare + route preview
+  // Live fare + route preview (geometry comes from getRouteInfo now)
   useEffect(() => {
     if (!userPos || !dropPos) { setFarePreview(null); setRouteGeo(null); return }
     getRouteInfo(userPos, dropPos).then(info => {
       setFarePreview(calcFare(info.distKm, concession, fareRate.rate_per_km, fareRate.minimum_fare))
       setRoute(info)
+      if (info.geometry) setRouteGeo(info.geometry)
     })
-    getRouteGeometry(userPos, dropPos).then(geo => setRouteGeo(geo))
   }, [userPos, dropPos, fareRate, concession])
 
   // Autocomplete helper
@@ -135,10 +135,7 @@ export default function BookCab() {
     const info = await getRouteInfo(pos, dropPos)
     setRoute(info)
     setFare(calcFare(info.distKm, concession, fareRate.rate_per_km, fareRate.minimum_fare))
-    if (!routeGeo) {
-      const geo = await getRouteGeometry(pos, dropPos)
-      setRouteGeo(geo)
-    }
+    if (info.geometry) setRouteGeo(info.geometry)
     setStep('confirm')
   }
 
@@ -291,7 +288,7 @@ export default function BookCab() {
             </div>
           </div>
 
-          <LiveMap userPos={userPos} dropPos={dropPos ? { ...dropPos } : null} routeGeometry={routeGeo} height={460}/>
+          <LiveMap userPos={userPos} dropPos={dropPos ? { ...dropPos } : null} routeGeo={routeGeo} height={460}/>
         </div>
       </div>
     </div>
@@ -327,7 +324,7 @@ export default function BookCab() {
             <button className="btn btn-primary w100 btn-lg" onClick={handleSubmit}>📤 Submit to Admin</button>
           </div>
         </div>
-        <LiveMap userPos={userPos} dropPos={dropPos ? { ...dropPos, label: drop } : null} routeGeometry={routeGeo} height={440}/>
+        <LiveMap userPos={userPos} dropPos={dropPos ? { ...dropPos, label: drop } : null} routeGeo={routeGeo} height={440}/>
       </div>
     </div>
   )
