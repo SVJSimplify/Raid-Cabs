@@ -81,7 +81,8 @@ export default function Login() {
   const emailH = makeOtpHandlers(emailOtp, setEmailOtp, emailRefs)
   const smsH   = makeOtpHandlers(smsOtp,   setSmsOtp,   smsRefs)
 
-  const OtpBoxes = ({ otp, refs, handlers }) => (
+  // renderOtp — plain function, NOT a component (avoids remount/focus-loss on keystroke)
+  const renderOtp = (otp, refs, handlers) => (
     <div style={{ display:'flex', gap:'.5rem', justifyContent:'center', margin:'1.5rem 0' }}>
       {otp.map((v, i) => (
         <input key={i} ref={el => refs.current[i] = el}
@@ -89,7 +90,8 @@ export default function Login() {
           onChange={e => handlers.onCell(i, e.target.value)}
           onKeyDown={e => handlers.onKey(i, e)}
           onPaste={i === 0 ? handlers.onPaste : undefined}
-          className="otp-cell" style={{ borderColor: v ? 'var(--gold)' : 'var(--b1)' }}/>
+          className="otp-cell"
+          style={{ borderColor: v ? 'var(--gold)' : 'var(--b1)' }}/>
       ))}
     </div>
   )
@@ -441,7 +443,7 @@ export default function Login() {
                   <div style={{ textAlign:'center', padding:'.65rem', background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.2)', borderRadius:'var(--rs)', marginBottom:'.5rem', fontWeight:700, color:'var(--green)' }}>
                     📱 +91{phone.replace(/\D/g,'').slice(-10)}
                   </div>
-                  <OtpBoxes otp={smsOtp} refs={smsRefs} handlers={smsH}/>
+                  {renderOtp(smsOtp, smsRefs, smsH)}
                   <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading || smsOtp.join('').length !== 6}>
                     {loading ? <span className="spinner"/> : '✦ Verify & Sign In'}
                   </button>
@@ -481,7 +483,7 @@ export default function Login() {
                 <div><div style={{ fontFamily:'var(--fd)', fontSize:'1.35rem', fontWeight:700 }}>{emailOtpStep==='input'?'Your Email':'Check Email'}</div><div style={{ color:'var(--ts)', fontSize:'.82rem', marginTop:2 }}>{emailOtpStep==='verify'?`Code sent to ${email}`:"We'll email you a 6-digit code"}</div></div>
               </div>
               {emailOtpStep==='input' && <form onSubmit={e=>{e.preventDefault();sendEmailOtp()}}><div className="fg mb3"><label className="label">Email Address</label><div className="input-wrap"><Mail size={15} className="ico"/><input className="input" type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} required autoFocus name="email" autoComplete="email"/></div></div><button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:<><ArrowRight size={16}/> Send Code</>}</button></form>}
-              {emailOtpStep==='verify' && <form onSubmit={verifyEmailOtpFn}><div style={{ textAlign:'center', padding:'.65rem', background:'rgba(52,152,219,.08)', border:'1px solid rgba(52,152,219,.2)', borderRadius:'var(--rs)', marginBottom:'.5rem', fontWeight:700, color:'#3498db' }}>✉️ {email}</div><OtpBoxes otp={emailOtp} refs={emailRefs} handlers={emailH}/><button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading||emailOtp.join('').length!==OTP_LEN}>{loading?<span className="spinner"/>:'✦ Verify & Sign In'}</button><div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}><button type="button" className="btn btn-ghost btn-sm" onClick={()=>{setEmailStep('input');setEmailOtp(Array(OTP_LEN).fill(''))}}><ChevronLeft size={13}/> Change</button><button type="button" className="btn btn-ghost btn-sm" onClick={sendEmailOtp} disabled={cooldown>0||loading}><RefreshCw size={13}/> {cooldown>0?`Resend in ${cooldown}s`:'Resend'}</button></div></form>}
+              {emailOtpStep==='verify' && <form onSubmit={verifyEmailOtpFn}><div style={{ textAlign:'center', padding:'.65rem', background:'rgba(52,152,219,.08)', border:'1px solid rgba(52,152,219,.2)', borderRadius:'var(--rs)', marginBottom:'.5rem', fontWeight:700, color:'#3498db' }}>✉️ {email}</div>{renderOtp(emailOtp, emailRefs, emailH)}<button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading||emailOtp.join('').length!==OTP_LEN}>{loading?<span className="spinner"/>:'✦ Verify & Sign In'}</button><div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}><button type="button" className="btn btn-ghost btn-sm" onClick={()=>{setEmailStep('input');setEmailOtp(Array(OTP_LEN).fill(''))}}><ChevronLeft size={13}/> Change</button><button type="button" className="btn btn-ghost btn-sm" onClick={sendEmailOtp} disabled={cooldown>0||loading}><RefreshCw size={13}/> {cooldown>0?`Resend in ${cooldown}s`:'Resend'}</button></div></form>}
             </>
           )}
 
