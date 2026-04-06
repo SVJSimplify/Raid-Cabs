@@ -1,6 +1,6 @@
 // GET /api/route?startLng=&startLat=&endLng=&endLat=
-// Proxies OpenRouteService to avoid CORS
-// Always returns 200 — either route data or { fallback: true }
+// Proxies Mappls Route Advance API to avoid CORS
+// Same VITE_MAPPLS_KEY used for the map SDK
 
 const https = require('https')
 
@@ -24,31 +24,29 @@ module.exports = async function handler(req, res) {
 
   try {
     const { startLng, startLat, endLng, endLat } = req.query || {}
-
     if (!startLng || !startLat || !endLng || !endLat)
       return res.status(200).json({ fallback: true, reason: 'missing params' })
 
-    const key = process.env.VITE_ORS_KEY
+    // Use dedicated REST key if set, otherwise fall back to static key
+    const key = process.env.MAPPLS_REST_KEY || process.env.VITE_MAPPLS_KEY
     if (!key)
       return res.status(200).json({ fallback: true, reason: 'no key' })
 
-    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${key}&start=${startLng},${startLat}&end=${endLng},${endLat}`
+    // Mappls Route Advance API — same key as the map SDK
+    const url = `https://apis.mappls.com/advancedmaps/v1/${key}/route_adv/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full&steps=false`
+
     const { ok, body } = await httpsGet(url)
+    if (!ok) return res.status(200).json({ fallback: true, reason: 'mappls error' })
 
-    if (!ok) return res.status(200).json({ fallback: true, reason: 'ors error' })
-
-    const seg = body?.features?.[0]?.properties?.segments?.[0]
-    const geo = body?.features?.[0]?.geometry
-
-    if (!seg) return res.status(200).json({ fallback: true, reason: 'no route' })
+    const route = body?.routes?.[0]
+    if (!route) return res.status(200).json({ fallback: true, reason: 'no route' })
 
     return res.status(200).json({
-      geometry:     geo,
-      distanceKm:   +(seg.distance / 1000).toFixed(1),
-      durationMins: Math.ceil(seg.duration / 60),
+      geometry:     route.geometry,
+      distanceKm:   +(route.distance / 1000).toFixed(1),
+      durationMins: Math.ceil(route.duration / 60),
     })
   } catch (err) {
-    // Never crash — always return a usable fallback
     return res.status(200).json({ fallback: true, reason: err.message })
   }
 }
