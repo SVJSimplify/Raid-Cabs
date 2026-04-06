@@ -3,8 +3,6 @@
 // Geocoding: Nominatim (OpenStreetMap) — biased to IIT Hyderabad area
 // Routing ETA: Haversine × 1.40 road factor
 
-// IIT Hyderabad bounding box — Nominatim prioritizes results in this area
-const VIEWBOX = '77.9,17.3,78.5,17.8' // lng_min,lat_min,lng_max,lat_max
 const IIT = { lat: 17.5934, lng: 78.1270 }
 
 // ─── Distance ─────────────────────────────────────────────────────────────
