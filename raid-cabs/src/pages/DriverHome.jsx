@@ -39,7 +39,7 @@ export default function DriverHome() {
         setGpsError(false)
         // Push to Supabase every 4 seconds
         const now = Date.now()
-        if (now - lastPush > 4000) {
+        if (now - lastPush > 120000) { // push every 2 minutes
           lastPush = now
           const { error } = await supabase.from('drivers').update({
             current_lat: lat,
