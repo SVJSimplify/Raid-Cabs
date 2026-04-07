@@ -188,8 +188,11 @@ export default function ActiveBooking() {
     if (data.status === 'in_progress') setPinVerified(true) // already started
 
     if (data.status === 'confirmed') {
-      const mins = parseInt(data.eta_pickup) || 8
-      setCountdown(mins * 60)
+      // Use scheduled time for realistic ETA
+      const minsToPickup = data.scheduled_at
+        ? etaFromScheduled(data.scheduled_at)
+        : parseInt(data.eta_pickup) || 10
+      setCountdown(minsToPickup * 60)
     }
     if (data.status === 'completed' && !data.user_rating) setShowRating(true)
     setLoading(false)
@@ -243,7 +246,7 @@ export default function ActiveBooking() {
     fetchPos()
 
     // Poll every 6 seconds as fallback (works even if realtime isn't configured)
-    const poll = setInterval(fetchPos, 6000)
+    const poll = setInterval(fetchPos, 15000) // poll every 15 seconds
 
     // Also subscribe to realtime for instant updates
     const ch = supabase.channel(`drv-loc-${driver.id}`)
@@ -470,6 +473,7 @@ export default function ActiveBooking() {
               driverPos={driverPos}
               dropPos={dropPos}
               height={440}
+              isInRide={isInProgress}
               liveLabel={driverPos ? '🟢 Driver GPS live' : null}
             />
             {!driverPos && isConfirmed && (
