@@ -1,6 +1,6 @@
 // RaidCabs Service Worker v5
 // Simplified: navigation always goes to network, static assets cached
-const CACHE = 'raidcabs-v5'
+const CACHE = 'raidcabs-v6'
 const PRECACHE = ['/offline.html']
 
 self.addEventListener('install', e => {
