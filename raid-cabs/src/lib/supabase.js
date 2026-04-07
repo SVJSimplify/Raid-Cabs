@@ -27,9 +27,14 @@ const SUPA_KEY = ENV_OK ? RAW_KEY : 'eyJplaceholder'
 
 export const supabase = createClient(SUPA_URL, SUPA_KEY, {
   auth: {
-    persistSession:      true,
-    autoRefreshToken:    true,
-    detectSessionInUrl:  true,
+    persistSession:     true,
+    autoRefreshToken:   true,
+    detectSessionInUrl: true,
+    storageKey:         'raidcabs-auth',
+    storage:            window.localStorage, // explicit — avoids BroadcastChannel worker
+  },
+  realtime: {
+    params: { eventsPerSecond: 2 },
   },
 })
 
