@@ -41,7 +41,7 @@ export function DriverProvider({ children }) {
       supabase.from('bookings')
         .select('*')
         .eq('driver_id', driverId)
-        .in('status', ['confirmed','in_progress'])
+        .in('status', ['confirmed','in_progress'])  // confirmed = admin approved, driver sees Start Ride
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
