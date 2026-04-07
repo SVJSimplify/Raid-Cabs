@@ -25,6 +25,8 @@ export default function DriverHome() {
   const [actionLoading, setActionLoad]   = useState(false)
   const [todayStats,    setTodayStats]   = useState({ trips:0, earnings:0 })
   const [showSos,       setShowSos]      = useState(false)
+  const [rideSeconds,   setRideSeconds]  = useState(0)
+  const rideTimerRef = useRef(null)
   const [mapExpanded,   setMapExpanded]  = useState(true)
   const watchRef = useRef(null)
 
@@ -63,6 +65,31 @@ export default function DriverHome() {
     q(() => supabase.from('bookings').select('final_fare').eq('driver_id', driver.id).eq('status','completed').gte('created_at',`${today}T00:00:00`))
       .then(({ data }) => setTodayStats({ trips: data?.length||0, earnings: data?.reduce((s,b)=>s+(b.final_fare||0),0)||0 }))
   }, [driver, currentBooking])
+
+  // Ride timer — starts when in_progress
+  useEffect(() => {
+    if (currentBooking?.status === 'in_progress') {
+      const started = currentBooking.started_at
+        ? new Date(currentBooking.started_at).getTime()
+        : Date.now()
+      rideTimerRef.current = setInterval(() => {
+        setRideSeconds(Math.floor((Date.now() - started) / 1000))
+      }, 1000)
+    } else {
+      if (rideTimerRef.current) clearInterval(rideTimerRef.current)
+      setRideSeconds(0)
+    }
+    return () => { if (rideTimerRef.current) clearInterval(rideTimerRef.current) }
+  }, [currentBooking?.status, currentBooking?.started_at])
+
+  const fmtTimer = s => {
+    const h = Math.floor(s / 3600)
+    const m = Math.floor((s % 3600) / 60)
+    const sec = s % 60
+    return h > 0
+      ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+      : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+  }
 
   const doAction = async (status, label) => {
     setActionLoad(true)
@@ -281,11 +308,19 @@ export default function DriverHome() {
             <div style={{ display:'flex', flexDirection:'column', gap:'.6rem', marginBottom:'.85rem' }}>
               {currentBooking.status === 'confirmed' && (
                 <>
-                  <div style={{ padding:'1rem', background:'rgba(245,166,35,.07)', border:'1px solid rgba(245,166,35,.2)', borderRadius:12, marginBottom:'.6rem', textAlign:'center' }}>
-                    <div style={{ fontSize:'1.2rem', marginBottom:'.35rem' }}>🔑</div>
-                    <div style={{ fontWeight:700, fontSize:'.9rem', color:'#ffb347', marginBottom:'.25rem' }}>Waiting for Passenger PIN</div>
-                    <div style={{ fontSize:'.78rem', color:'#9890c2', lineHeight:1.5 }}>Ask the passenger to enter their 4-digit Ride PIN in the app to start the trip.</div>
+                  <div style={{ padding:'1.1rem', background:'rgba(46,204,113,.07)', border:'1px solid rgba(46,204,113,.25)', borderRadius:12, marginBottom:'.75rem', textAlign:'center' }}>
+                    <div style={{ fontSize:'1.4rem', marginBottom:'.35rem' }}>✅</div>
+                    <div style={{ fontWeight:700, fontSize:'.95rem', color:'#2ecc71', marginBottom:'.2rem' }}>Booking Confirmed!</div>
+                    <div style={{ fontSize:'.78rem', color:'#9890c2', lineHeight:1.5 }}>
+                      Head to the pickup point. When passenger is in the vehicle, tap Start Ride.
+                    </div>
+                    <div style={{ marginTop:'.65rem', fontSize:'.8rem', color:'#9890c2' }}>
+                      📍 {currentBooking.pickup_address?.split(',')[0] || 'Pickup location'}
+                    </div>
                   </div>
+                  <button className="dh-btn dh-o" onClick={() => doAction('in_progress','🚗 Ride started!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
+                    {actionLoading ? <Spinner/> : <><Zap size={16}/> Start Ride</>}
+                  </button>
                   <button className="dh-btn dh-r" onClick={() => doAction('cancelled','Booking cancelled')} disabled={actionLoading}>
                     <XCircle size={14}/> Cancel Ride
                   </button>
@@ -293,8 +328,18 @@ export default function DriverHome() {
               )}
               {currentBooking.status === 'in_progress' && (
                 <>
-                  <button className="dh-btn dh-g" onClick={() => doAction('completed','✅ Trip completed!')} disabled={actionLoading}>
-                    {actionLoading?<Spinner/>:<><CheckCircle size={16}/> Complete Trip — Arrived at IIT</>}
+                  {/* Ride timer */}
+                  <div style={{ textAlign:'center', padding:'.85rem', background:'rgba(46,204,113,.06)', border:'1px solid rgba(46,204,113,.2)', borderRadius:12, marginBottom:'.75rem' }}>
+                    <div style={{ fontSize:'.72rem', color:'#504c74', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:'.35rem' }}>Ride Duration</div>
+                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'2.4rem', fontWeight:900, color:'#2ecc71', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>
+                      {fmtTimer(rideSeconds)}
+                    </div>
+                    <div style={{ fontSize:'.75rem', color:'#504c74', marginTop:'.35rem' }}>
+                      🎯 Drop: {currentBooking.drop_address?.split(',')[0] || 'Destination'}
+                    </div>
+                  </div>
+                  <button className="dh-btn dh-g" onClick={() => doAction('completed','✅ Trip completed!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
+                    {actionLoading?<Spinner/>:<><CheckCircle size={16}/> Complete Trip</>}
                   </button>
                   <button className="dh-btn dh-ghost" onClick={() => setShowSos(true)}>
                     <AlertTriangle size={14}/> SOS Emergency
