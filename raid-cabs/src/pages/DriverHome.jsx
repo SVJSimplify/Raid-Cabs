@@ -308,18 +308,40 @@ export default function DriverHome() {
             <div style={{ display:'flex', flexDirection:'column', gap:'.6rem', marginBottom:'.85rem' }}>
               {currentBooking.status === 'confirmed' && (
                 <>
-                  <div style={{ padding:'1.1rem', background:'rgba(46,204,113,.07)', border:'1px solid rgba(46,204,113,.25)', borderRadius:12, marginBottom:'.75rem', textAlign:'center' }}>
-                    <div style={{ fontSize:'1.4rem', marginBottom:'.35rem' }}>✅</div>
-                    <div style={{ fontWeight:700, fontSize:'.95rem', color:'#2ecc71', marginBottom:'.2rem' }}>Booking Confirmed!</div>
-                    <div style={{ fontSize:'.78rem', color:'#9890c2', lineHeight:1.5 }}>
-                      Head to the pickup point. When passenger is in the vehicle, tap Start Ride.
+                  {/* Pickup info card */}
+                  <div style={{ padding:'1.1rem', background:'rgba(46,204,113,.07)', border:'2px solid rgba(46,204,113,.3)', borderRadius:14, marginBottom:'1rem' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.65rem' }}>
+                      <div style={{ width:36,height:36,borderRadius:'50%',background:'rgba(46,204,113,.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0 }}>✅</div>
+                      <div>
+                        <div style={{ fontWeight:800, fontSize:'.95rem', color:'#2ecc71' }}>Ride Assigned To You!</div>
+                        <div style={{ fontSize:'.74rem', color:'#9890c2', marginTop:1 }}>Head to pickup. Press Start Ride when passenger is in.</div>
+                      </div>
                     </div>
-                    <div style={{ marginTop:'.65rem', fontSize:'.8rem', color:'#9890c2' }}>
-                      📍 {currentBooking.pickup_address?.split(',')[0] || 'Pickup location'}
+                    <div style={{ display:'flex', flexDirection:'column', gap:'.4rem' }}>
+                      <div style={{ display:'flex', gap:'.6rem', fontSize:'.82rem' }}>
+                        <span style={{ color:'#3b82f6', flexShrink:0 }}>📍</span>
+                        <span style={{ color:'#ede8d8', fontWeight:600 }}>{currentBooking.pickup_address?.split(',')[0] || '—'}</span>
+                      </div>
+                      <div style={{ display:'flex', gap:'.6rem', fontSize:'.82rem' }}>
+                        <span style={{ color:'#ffb347', flexShrink:0 }}>🏁</span>
+                        <span style={{ color:'#9890c2' }}>{currentBooking.drop_address?.split(',')[0] || '—'}</span>
+                      </div>
+                      {currentBooking.scheduled_at && (
+                        <div style={{ display:'flex', gap:'.6rem', fontSize:'.82rem', marginTop:'.25rem' }}>
+                          <span style={{ flexShrink:0 }}>🕐</span>
+                          <span style={{ color:'#ffb347', fontWeight:700 }}>
+                            {new Date(currentBooking.scheduled_at).toLocaleString('en-IN',{weekday:'short',hour:'2-digit',minute:'2-digit'})}
+                            {' · ₹'}{currentBooking.final_fare}
+                            {currentBooking.discount_amount > 0 ? ` (₹${currentBooking.discount_amount} off)` : ''}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <button className="dh-btn dh-o" onClick={() => doAction('in_progress','🚗 Ride started!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
-                    {actionLoading ? <Spinner/> : <><Zap size={16}/> Start Ride</>}
+                  {/* START RIDE button — prominent */}
+                  <button className="dh-btn" onClick={() => doAction('in_progress','🚗 Ride started!')} disabled={actionLoading}
+                    style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', fontSize:'1rem', fontWeight:800, padding:'1rem', marginBottom:'.6rem', boxShadow:'0 4px 20px rgba(34,197,94,.4)' }}>
+                    {actionLoading ? <Spinner/> : <><Zap size={18}/> Start Ride</>}
                   </button>
                   <button className="dh-btn dh-r" onClick={() => doAction('cancelled','Booking cancelled')} disabled={actionLoading}>
                     <XCircle size={14}/> Cancel Ride
