@@ -99,7 +99,7 @@ function PendingRidesPanel({ drivers, load }) {
   const loadRides = React.useCallback(() => {
     setLoading(true)
     q(() => supabase.from('bookings')
-      .select('*,profiles:user_id(full_name,phone,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone)')
+      .select('*,profiles:user_id(full_name,phone,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone),drivers(name,photo_url,vehicle_number,vehicle_model,phone,rating)')
       .in('status', ['pending_admin','confirmed','in_progress'])
       .order('scheduled_at', { ascending:true })
     ).then(({ data }) => { setRides(data||[]); setLoading(false) })
@@ -206,6 +206,20 @@ function PendingRidesPanel({ drivers, load }) {
                 </div>
 
                 {b.admin_notes&&<div style={{marginTop:'.4rem',fontSize:'.78rem',color:'#ffb347'}}>📝 {b.admin_notes}</div>}
+
+                {/* Driver details */}
+                {b.drivers && (
+                  <div style={{marginTop:'.6rem',display:'flex',alignItems:'center',gap:'.6rem',background:'rgba(34,197,94,.06)',border:'1px solid rgba(34,197,94,.18)',borderRadius:8,padding:'.5rem .75rem'}}>
+                    <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(34,197,94,.12)',border:'1px solid rgba(34,197,94,.25)',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0}}>
+                      {b.drivers.photo_url?<img src={b.drivers.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontSize:'.85rem',color:'#22c55e',fontWeight:700}}>{b.drivers.name?.[0]}</span>}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:'.8rem',fontWeight:700,color:'#22c55e'}}>{b.drivers.name}</div>
+                      <div style={{fontSize:'.72rem',color:'#504c74'}}>{b.drivers.vehicle_model} · {b.drivers.vehicle_number}</div>
+                    </div>
+                    <div style={{fontSize:'.75rem',color:'#ffb347'}}>⭐ {Number(b.drivers.rating||5).toFixed(1)}</div>
+                  </div>
+                )}
               </div>
 
               {/* Assign driver */}
@@ -544,7 +558,7 @@ export default function OpsDashboard() {
       q(() => supabase.from('discount_tiers').select('*').order('sort_order')),
       q(() => supabase.from('drivers').select('*').eq('is_approved',true).order('created_at',{ascending:false})),
       q(() => supabase.from('drivers').select('*').eq('is_approved',false).order('created_at',{ascending:false})),
-      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,drop_address,final_fare,discount_amount,status,created_at,scheduled_at,user_id,driver_id,drivers(name,vehicle_number)').order('created_at',{ascending:false}).limit(60)),
+      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,drop_address,final_fare,discount_amount,status,created_at,scheduled_at,user_id,driver_id,drivers(name,vehicle_number)').order('created_at',{ascending:false}).limit(100)),
       q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('profiles').select('*').order('created_at',{ascending:false})),
     ])
