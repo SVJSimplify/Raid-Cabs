@@ -82,6 +82,21 @@ export default function DriverHome() {
     return () => { if (rideTimerRef.current) clearInterval(rideTimerRef.current) }
   }, [currentBooking?.status, currentBooking?.started_at])
 
+  // Countdown to scheduled pickup
+  const [pickupCountdown, setPickupCountdown] = useState(null)
+  useEffect(() => {
+    if (!currentBooking?.scheduled_at || currentBooking.status !== 'confirmed') {
+      setPickupCountdown(null); return
+    }
+    const tick = () => {
+      const diff = Math.floor((new Date(currentBooking.scheduled_at) - Date.now()) / 1000)
+      setPickupCountdown(diff)
+    }
+    tick()
+    const iv = setInterval(tick, 1000)
+    return () => clearInterval(iv)
+  }, [currentBooking?.scheduled_at, currentBooking?.status])
+
   const fmtTimer = s => {
     const h = Math.floor(s / 3600)
     const m = Math.floor((s % 3600) / 60)
@@ -90,6 +105,21 @@ export default function DriverHome() {
       ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
       : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
   }
+
+  const fmtCountdown = s => {
+    if (s <= 0) return 'NOW'
+    const h = Math.floor(s / 3600)
+    const m = Math.floor((s % 3600) / 60)
+    const sec = s % 60
+    if (h > 0) return `${h}h ${m}m`
+    if (m > 0) return `${m}m ${sec}s`
+    return `${sec}s`
+  }
+
+  // Driver should dispatch 30 mins before scheduled time
+  const DISPATCH_MINS = 30
+  const canDispatch = pickupCountdown !== null && pickupCountdown <= DISPATCH_MINS * 60
+  const minsToDispatch = pickupCountdown !== null ? Math.ceil((pickupCountdown - DISPATCH_MINS * 60) / 60) : null
 
   const doAction = async (status, label) => {
     setActionLoad(true)
@@ -348,6 +378,27 @@ export default function DriverHome() {
                   </button>
                 </>
               )}
+              {currentBooking.status === 'en_route' && (
+                <>
+                  <div style={{ padding:'1rem', background:'rgba(59,130,246,.08)', border:'1px solid rgba(59,130,246,.25)', borderRadius:12, marginBottom:'.75rem', textAlign:'center' }}>
+                    <div style={{ fontSize:'1.4rem', marginBottom:'.3rem' }}>🚗</div>
+                    <div style={{ fontWeight:700, fontSize:'.9rem', color:'#3b82f6', marginBottom:'.2rem' }}>En Route to Pickup</div>
+                    <div style={{ fontSize:'.78rem', color:'#9890c2', lineHeight:1.5 }}>
+                      When the passenger is in the vehicle and gives you the go-ahead, tap Start Ride.
+                    </div>
+                    <div style={{ marginTop:'.5rem', fontSize:'.78rem', color:'#9890c2' }}>
+                      📍 {currentBooking.pickup_address?.split(',')[0]}
+                    </div>
+                  </div>
+                  <button className="dh-btn dh-g" onClick={() => doAction('in_progress','🚀 Ride started!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
+                    {actionLoading ? <Spinner/> : <><Zap size={16}/> Start Ride</>}
+                  </button>
+                  <button className="dh-btn dh-r" onClick={() => doAction('cancelled','Booking cancelled')} disabled={actionLoading}>
+                    <XCircle size={14}/> Cancel Ride
+                  </button>
+                </>
+              )}
+
               {currentBooking.status === 'in_progress' && (
                 <>
                   {/* Ride timer */}
