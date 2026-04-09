@@ -18,12 +18,15 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Unregister any old service workers first, then register fresh
+      // Kill ALL old service workers and caches, then register fresh
       if ('serviceWorker' in navigator) {
+        // Clear all caches first
+        if (window.caches) {
+          caches.keys().then(keys => keys.forEach(k => caches.delete(k)))
+        }
+        // Unregister all old SWs
         navigator.serviceWorker.getRegistrations().then(regs => {
-          // Unregister all old SWs
           Promise.all(regs.map(r => r.unregister())).then(() => {
-            // Register fresh SW after clearing
             navigator.serviceWorker.register('/sw.js')
               .then(() => console.log('[PWA] Service worker registered'))
               .catch(e => console.log('[PWA] SW failed:', e))
