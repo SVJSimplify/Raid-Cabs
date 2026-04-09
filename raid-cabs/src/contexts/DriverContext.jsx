@@ -41,7 +41,7 @@ export function DriverProvider({ children }) {
       supabase.from('bookings')
         .select('*')
         .eq('driver_id', driverId)
-        .in('status', ['confirmed','in_progress'])  // confirmed = admin approved, driver sees Start Ride
+        .in('status', ['confirmed','en_route','in_progress'])  // confirmed=approved, en_route=going to pickup, in_progress=riding
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -63,7 +63,8 @@ export function DriverProvider({ children }) {
 
   const updateBookingStatus = async (bookingId, status) => {
     const extra = {}
-    if (status === 'in_progress') extra.started_at  = new Date().toISOString()
+    if (status === 'en_route')    extra.dispatched_at = new Date().toISOString()
+    if (status === 'in_progress') extra.started_at    = new Date().toISOString()
     if (status === 'completed')   extra.completed_at = new Date().toISOString()
     if (status === 'cancelled')   extra.cancelled_at = new Date().toISOString()
 
