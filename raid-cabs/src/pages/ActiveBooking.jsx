@@ -172,7 +172,7 @@ export default function ActiveBooking() {
       const res = await supabase.from('bookings')
         .select('*,drivers(*)')
         .eq('user_id', user.id)
-        .in('status', ['pending_admin','confirmed','in_progress','completed'])
+        .in('status', ['pending_admin','confirmed','en_route','in_progress','completed'])
         .order('created_at', { ascending:false })
         .limit(1)
         .maybeSingle()
@@ -324,6 +324,7 @@ export default function ActiveBooking() {
   const isInProgress = booking?.status === 'in_progress'
   const isConfirmed  = booking?.status === 'confirmed'
   const isPending    = booking?.status === 'pending_admin'
+  const isEnRoute    = booking?.status === 'en_route'
   const driverArrived= isConfirmed && countdown !== null && countdown <= 0
 
   if (loading) return (
@@ -347,17 +348,25 @@ export default function ActiveBooking() {
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:'.85rem' }}>
             <div style={{ fontSize:'2.5rem', flexShrink:0 }}>
-              {isCompleted ? '✅' : isInProgress ? '🚗' : isPending ? '📋' : driverArrived ? '🎉' : '⏳'}
+              {isCompleted ? '✅' : isInProgress ? '🚗' : isPending ? '📋' : isEnRoute ? '🚗' : driverArrived ? '🎉' : '✅'}
             </div>
             <div style={{ flex:1 }}>
               <h1 className="h2" style={{ marginBottom:'.25rem' }}>
-                {isCompleted ? 'Trip Completed' : isInProgress ? 'Ride in Progress' : isPending ? 'Waiting for Admin' : driverArrived ? 'Driver Arrived!' : 'Driver On The Way'}
+                {isCompleted ? 'Trip Completed' : isInProgress ? 'Ride in Progress' : isPending ? 'Waiting for Admin' : isEnRoute ? 'Driver On The Way' : driverArrived ? 'Driver Arrived!' : 'Ride Confirmed'}
               </h1>
               <span className={`badge ${isCompleted?'b-green':isInProgress?'b-gold':'b-green'}`}>
                 {booking.status.replace('_',' ')}
               </span>
             </div>
           </div>
+
+          {/* En route message */}
+          {isEnRoute && (
+            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
+              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Your driver is on the way</div>
+              <div style={{ fontWeight:700, color:'#3b82f6', fontSize:'.9rem' }}>Watch the map for live location</div>
+            </div>
+          )}
 
           {/* Pending admin message */}
           {isPending && (
