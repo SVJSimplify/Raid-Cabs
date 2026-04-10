@@ -21,7 +21,7 @@ function PendingRidesPanel({ drivers, load }) {
     setLoading(true)
     q(() => supabase.from('bookings')
       // Fix: explicit :user_id hint to avoid PGRST201 ambiguity
-      .select('*,profiles:user_id(full_name,phone,email,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone),drivers:driver_id(name,photo_url,vehicle_number,vehicle_model,phone,rating)')
+      .select('*,profiles:user_id(full_name,phone,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone),drivers:driver_id(name,photo_url,vehicle_number,vehicle_model,phone,rating)')
       .in('status', ['pending_admin','confirmed','en_route','in_progress'])
       .order('scheduled_at', { ascending:true })
     ).then(({ data }) => { setRides(data||[]); setLoading(false) })
