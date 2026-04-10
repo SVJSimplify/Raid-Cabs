@@ -40,8 +40,11 @@ export default function Dashboard() {
     supabase.from('bookings').select('*').eq('user_id',user.id).eq('status','completed').is('user_rating',null).order('created_at',{ascending:false}).limit(1)
       .then(({data})=>{
         if (data?.[0]) {
-          setUnrated(data[0])
-          if (data[0].driver_id) supabase.from('drivers').select('*').eq('id',data[0].driver_id).maybeSingle().then(({data:d})=>setUnratedDriver(d))
+          const dismissed = localStorage.getItem(`rating_dismissed_${data[0].id}`)
+          if (!dismissed) {
+            setUnrated(data[0])
+            if (data[0].driver_id) supabase.from('drivers').select('*').eq('id',data[0].driver_id).maybeSingle().then(({data:d})=>setUnratedDriver(d))
+          }
         }
       })
 
@@ -217,7 +220,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {unrated && <RatingPrompt booking={unrated} driver={unratedDriver} onDone={()=>setUnrated(null)}/>}
+      {unrated && <RatingPrompt booking={unrated} driver={unratedDriver} onDone={(rated)=>{ if(!rated) localStorage.setItem(`rating_dismissed_${unrated.id}`,'1'); setUnrated(null) }}/>}
       </div>
       <BottomNav/>
     </div>
