@@ -95,9 +95,6 @@ function PendingRidesPanel({ drivers, load }) {
   const [assigning,  setAsg]     = React.useState(false)
   const [mapRide,    setMapRide]      = React.useState(null)
   const [driverPos,  setDrvPos]       = React.useState(null)
-  const [showAddDriver, setShowAddDriver] = React.useState(false)
-  const [newDriver,  setNewDriver]    = React.useState({ name:'', phone:'', vehicle_model:'', vehicle_number:'', login_pin:'' })
-  const [addingDriver, setAddingDriver] = React.useState(false)
 
   const loadRides = React.useCallback(() => {
     setLoading(true)
