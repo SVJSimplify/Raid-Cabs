@@ -411,8 +411,8 @@ export default function DriverHome() {
                       🎯 Drop: {currentBooking.drop_address?.split(',')[0] || 'Destination'}
                     </div>
                   </div>
-                  <button className="dh-btn dh-g" onClick={() => doAction('completed','✅ Trip completed!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
-                    {actionLoading?<Spinner/>:<><CheckCircle size={16}/> Complete Trip</>}
+                  <button className="dh-btn dh-g" onClick={() => doAction('completed','✅ Ride ended — passenger will see payment QR!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
+                    {actionLoading?<Spinner/>:<><CheckCircle size={16}/> End Ride</>}
                   </button>
                   <button className="dh-btn dh-ghost" onClick={() => setShowSos(true)}>
                     <AlertTriangle size={14}/> SOS Emergency
