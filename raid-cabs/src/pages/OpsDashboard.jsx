@@ -488,7 +488,7 @@ export default function OpsDashboard() {
       q(() => supabase.from('discount_tiers').select('*').order('sort_order')),
       q(() => supabase.from('drivers').select('*').eq('is_approved',true).order('created_at',{ascending:false})),
       q(() => supabase.from('drivers').select('*').eq('is_approved',false).order('created_at',{ascending:false})),
-      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,final_fare,status,created_at,user_id,driver_id,profiles!bookings_user_id_fkey(full_name),drivers(name)').order('created_at',{ascending:false}).limit(60)),
+      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,final_fare,status,created_at,user_id,driver_id,profiles!bookings_user_fkey(full_name),drivers(name)').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id,profiles!deposits_user_id_fkey(full_name,phone)').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('profiles').select('*').order('created_at',{ascending:false})),
     ])
