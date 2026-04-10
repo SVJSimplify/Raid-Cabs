@@ -820,7 +820,7 @@ export default function OpsDashboard() {
                 ['Full Name','name','text','e.g. Ravi Kumar', v=>v.replace(/[^a-zA-Z\s]/g,''), null],
                 ['Phone','phone','tel','10-digit number', v=>v.replace(/[^0-9]/g,''), 10],
                 ['Vehicle Model','vehicle_model','text','e.g. Maruti Swift Dzire', v=>v, null],
-                ['Vehicle Number','vehicle_number','text','TS 09 AB 1234', v=>v.toUpperCase().replace(/[^A-Z0-9\s]/g,''), 12],
+                ['Vehicle Number','vehicle_number','text','TS 09 AB 1234', v=>v.toUpperCase().replace(/[^A-Z0-9\s]/g,''), 13],
                 ['Login PIN','login_pin','password','4 digits only', v=>v.replace(/[^0-9]/g,''), 4],
               ].map(([label,field,type,ph,sanitize,maxLen])=>(
                 <div key={field}>
@@ -849,7 +849,14 @@ export default function OpsDashboard() {
                 setAddingDriver(true)
                 const{error}=await q(()=>supabase.from('drivers').insert({name:name.trim(),phone:phone.replace(/[^0-9]/g,'').slice(-10),vehicle_model:vehicle_model.trim(),vehicle_number:vehicle_number.toUpperCase().trim(),login_pin,is_approved:true,status:'offline',rating:5.0,total_ratings:0}))
                 setAddingDriver(false)
-                if(error){toast.error(error.message);return}
+                if(error){
+                  if(error.code==='23505'||error.message?.includes('duplicate')||error.message?.includes('unique')){
+                    toast.error('A driver with this phone number already exists')
+                  } else {
+                    toast.error(error.message)
+                  }
+                  return
+                }
                 setShowAddDriver(false);setNewDriver({name:'',phone:'',vehicle_model:'',vehicle_number:'',login_pin:''});load();toast.success('Driver added! ✅')
               }} disabled={addingDriver} style={{background:'linear-gradient(135deg,#f5a623,#ff6b2b)',color:'#0a0a0f',border:'none',borderRadius:12,padding:'.85rem',fontWeight:700,fontSize:'.95rem',cursor:'pointer',fontFamily:"'Nunito',sans-serif",opacity:addingDriver?0.5:1}}>
                 {addingDriver?'Creating…':'✅ Create Driver'}
