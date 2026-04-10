@@ -6,6 +6,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase, q } from '../lib/supabase'
+import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '../contexts/AuthContext'
 import LiveMap from '../components/LiveMap'
 import SafetyPanel from '../components/SafetyPanel'
@@ -143,6 +144,8 @@ function PinEntry({ onVerified }) {
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────
+const UPI_ID = import.meta.env.VITE_UPI_ID || 'raidcabs@upi'
+
 export default function ActiveBooking() {
   const { id: paramId }  = useParams()
   const { user, profile }= useAuth()
@@ -471,7 +474,31 @@ export default function ActiveBooking() {
               </div>
             )}
             {isCompleted && (
-              <button className="btn btn-primary btn-blk btn-lg" onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+              <div style={{ marginTop:'1.25rem' }}>
+                {/* Payment QR */}
+                <div style={{ background:'rgba(34,197,94,.04)', border:'1px solid rgba(34,197,94,.2)', borderRadius:'var(--r)', padding:'1.5rem', textAlign:'center', marginBottom:'1rem' }}>
+                  <div style={{ fontFamily:'var(--fd)', fontWeight:700, fontSize:'1rem', marginBottom:'.25rem' }}>💳 Pay Your Fare</div>
+                  <div style={{ color:'var(--ts)', fontSize:'.82rem', marginBottom:'1.25rem' }}>
+                    Scan the QR code to pay <strong style={{ color:'var(--gold)' }}>₹{booking.final_fare}</strong> via UPI
+                  </div>
+                  <div style={{ display:'inline-block', background:'#fff', padding:14, borderRadius:12, boxShadow:'0 4px 24px rgba(0,0,0,.35)', marginBottom:'1rem' }}>
+                    <QRCodeSVG
+                      value={`upi://pay?pa=${UPI_ID}&pn=RaidCabs&am=${booking.final_fare}&cu=INR&tn=RaidCabs+Ride+Fare`}
+                      size={200}
+                      fgColor="#05050e"
+                      bgColor="#ffffff"
+                      level="H"
+                    />
+                  </div>
+                  <div style={{ fontSize:'.8rem', color:'var(--ts)' }}>
+                    UPI ID: <code style={{ color:'var(--gold)', background:'rgba(245,166,35,.1)', padding:'2px 8px', borderRadius:4 }}>{UPI_ID}</code>
+                  </div>
+                  <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.5rem' }}>
+                    Pay using any UPI app — PhonePe, GPay, Paytm, BHIM
+                  </div>
+                </div>
+                <button className="btn btn-primary btn-blk btn-lg" onClick={() => navigate('/dashboard')}>Done — Back to Dashboard</button>
+              </div>
             )}
           </div>
 
