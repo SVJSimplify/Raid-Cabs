@@ -4,7 +4,6 @@ import { OPS_PATH } from '../config'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, q } from '../lib/supabase'
-import LiveMap from '../components/LiveMap'
 import { LogOut, RefreshCw, Plus, Pencil, Trash2, Check, X, CheckCircle, XCircle, AlertTriangle, BarChart2, Car, CreditCard, Package, Users, Settings, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -88,18 +87,16 @@ function ApproveDriverBtn({ driver: d, onDone }) {
 
 
 function PendingRidesPanel({ drivers, load }) {
-  const [rides,      setRides]   = React.useState([])
-  const [loading,    setLoading] = React.useState(true)
-  const [selRide,    setSelRide] = React.useState(null)
-  const [selDrv,     setSelDrv]  = React.useState('')
-  const [assigning,  setAsg]     = React.useState(false)
-  const [mapRide,    setMapRide]      = React.useState(null)
-  const [driverPos,  setDrvPos]       = React.useState(null)
+  const [rides,   setRides]   = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [selRide, setSelRide] = React.useState(null)
+  const [selDrv,  setSelDrv]  = React.useState('')
+  const [assigning, setAsg]   = React.useState(false)
 
   const loadRides = React.useCallback(() => {
     setLoading(true)
     q(() => supabase.from('bookings')
-      .select('*,profiles:user_id(full_name,phone,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone),drivers(name,photo_url,vehicle_number,vehicle_model,phone,rating)')
+      .select('*,profiles(full_name,phone,email,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone)')
       .in('status', ['pending_admin','confirmed','in_progress'])
       .order('scheduled_at', { ascending:true })
     ).then(({ data }) => { setRides(data||[]); setLoading(false) })
@@ -107,30 +104,14 @@ function PendingRidesPanel({ drivers, load }) {
 
   useEffect(() => { loadRides() }, [loadRides])
 
+  // Realtime subscription for new bookings
   useEffect(() => {
     const ch = supabase.channel('admin-bookings')
       .on('postgres_changes', { event:'*', schema:'public', table:'bookings' },
-        () => loadRides()).subscribe()
+        () => loadRides()
+      ).subscribe()
     return () => supabase.removeChannel(ch)
   }, [loadRides])
-
-  // Live driver GPS tracking for map modal
-  useEffect(() => {
-    if (!mapRide?.driver_id) { setDrvPos(null); return }
-    let alive = true
-    const poll = async () => {
-      const { data } = await supabase.from('drivers')
-        .select('current_lat,current_lng').eq('id', mapRide.driver_id).maybeSingle()
-      if (alive && data?.current_lat) setDrvPos({ lat: parseFloat(data.current_lat), lng: parseFloat(data.current_lng) })
-    }
-    poll()
-    const iv = setInterval(poll, 5000)
-    const ch = supabase.channel(`admin-drv-${mapRide.driver_id}`)
-      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'drivers', filter:`id=eq.${mapRide.driver_id}` },
-        ({ new:d }) => { if (alive && d.current_lat) setDrvPos({ lat:parseFloat(d.current_lat), lng:parseFloat(d.current_lng) }) })
-      .subscribe()
-    return () => { alive=false; clearInterval(iv); supabase.removeChannel(ch) }
-  }, [mapRide?.driver_id])
 
   const availDrvs = (drivers||[]).filter(d => d.status==='available' && d.is_approved)
 
@@ -206,139 +187,20 @@ function PendingRidesPanel({ drivers, load }) {
                 </div>
 
                 {b.admin_notes&&<div style={{marginTop:'.4rem',fontSize:'.78rem',color:'#ffb347'}}>📝 {b.admin_notes}</div>}
-
-                {/* Driver details */}
-                {b.drivers && (
-                  <div style={{marginTop:'.6rem',display:'flex',alignItems:'center',gap:'.6rem',background:'rgba(34,197,94,.06)',border:'1px solid rgba(34,197,94,.18)',borderRadius:8,padding:'.5rem .75rem'}}>
-                    <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(34,197,94,.12)',border:'1px solid rgba(34,197,94,.25)',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0}}>
-                      {b.drivers.photo_url?<img src={b.drivers.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontSize:'.85rem',color:'#22c55e',fontWeight:700}}>{b.drivers.name?.[0]}</span>}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:'.8rem',fontWeight:700,color:'#22c55e'}}>{b.drivers.name}</div>
-                      <div style={{fontSize:'.72rem',color:'#504c74'}}>{b.drivers.vehicle_model} · {b.drivers.vehicle_number}</div>
-                    </div>
-                    <div style={{fontSize:'.75rem',color:'#ffb347'}}>⭐ {Number(b.drivers.rating||5).toFixed(1)}</div>
-                  </div>
-                )}
               </div>
 
               {/* Assign driver */}
-              <div style={{display:'flex',gap:'.5rem',alignItems:'center',flexShrink:0,flexWrap:'wrap'}}>
-                {b.pickup_lat && (
-                  <button onClick={()=>{setMapRide(b);setDrvPos(null)}}
-                    style={{background:'rgba(59,130,246,.1)',border:'1px solid rgba(59,130,246,.25)',color:'#60a5fa',borderRadius:6,padding:'4px 10px',fontSize:'.75rem',fontWeight:700,cursor:'pointer',fontFamily:"'Nunito',sans-serif"}}>
-                    🗺 Live Map
-                  </button>
-                )}
-                {isPending && (
+              {isPending && (
+                <div style={{display:'flex',gap:'.5rem',alignItems:'center',flexShrink:0}}>
                   <button className="ops-btn ops-btn-g" onClick={()=>{setSelRide(b);setSelDrv('')}}>
                     Assign Driver
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )
       })}
-
-      {/* Live Map Modal */}
-      {mapRide && (
-        <div className="overlay" onClick={()=>setMapRide(null)}>
-          <div style={{background:'#0e0e20',border:'1px solid rgba(255,255,255,.1)',borderRadius:20,padding:'1.5rem',maxWidth:680,width:'100%',maxHeight:'90vh',overflow:'auto'}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
-              <div>
-                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:'1rem',color:'#ede8d8'}}>
-                  Live Map — {users.find(u=>u.id===mapRide.user_id)?.full_name||'Passenger'}
-                </div>
-                <div style={{fontSize:'.78rem',color:'#504c74',marginTop:2}}>
-                  {mapRide.pickup_address?.split(',')[0]} → {mapRide.drop_address?.split(',')[0]}
-                  {driverPos && <span style={{color:'var(--green)',marginLeft:8}}>● Driver GPS live</span>}
-                </div>
-              </div>
-              <button onClick={()=>setMapRide(null)} style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,width:32,height:32,cursor:'pointer',fontFamily:"'Nunito',sans-serif",fontSize:'1.1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
-            </div>
-            <LiveMap
-              adminMode
-              userPos={mapRide.pickup_lat ? { lat:parseFloat(mapRide.pickup_lat), lng:parseFloat(mapRide.pickup_lng) } : null}
-              driverPos={driverPos}
-              dropPos={mapRide.drop_lat ? { lat:parseFloat(mapRide.drop_lat), lng:parseFloat(mapRide.drop_lng), label:mapRide.drop_address||'Destination' } : null}
-              height={380}
-              liveLabel={driverPos ? '🟢 Driver GPS live' : null}
-            />
-            <div style={{display:'flex',gap:'1rem',marginTop:'1rem',fontSize:'.8rem',color:'#504c74',flexWrap:'wrap'}}>
-              <span>📍 Pickup: {mapRide.pickup_address}</span>
-              <span>🏁 Drop: {mapRide.drop_address}</span>
-              {!driverPos && mapRide.driver_id && <span style={{color:'var(--gold)'}}>⏳ Waiting for driver to go online…</span>}
-              {!mapRide.driver_id && <span style={{color:'var(--gold)'}}>⚠ No driver assigned yet</span>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Driver Modal */}
-      {showAddDriver && (
-        <div className="overlay" onClick={()=>setShowAddDriver(false)}>
-          <div style={{background:'#0e0e20',border:'1px solid rgba(255,255,255,.1)',borderRadius:20,padding:'1.75rem',maxWidth:480,width:'100%',maxHeight:'90vh',overflow:'auto'}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.5rem'}}>
-              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:'1.1rem'}}>➕ Add New Driver</div>
-              <button onClick={()=>setShowAddDriver(false)} style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:'1.1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
-              {[
-                ['Full Name','name','text','e.g. Ravi Kumar'],
-                ['Phone Number','phone','tel','10-digit number'],
-                ['Vehicle Model','vehicle_model','text','e.g. Maruti Swift Dzire'],
-                ['Vehicle Number','vehicle_number','text','e.g. TS 09 AB 1234'],
-                ['Login PIN (4-digit)','login_pin','password','Driver uses this to log in'],
-              ].map(([label, field, type, placeholder]) => (
-                <div key={field}>
-                  <label style={{fontSize:'.72rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#8b87b0',display:'block',marginBottom:'.35rem'}}>{label}</label>
-                  <input
-                    type={type}
-                    placeholder={placeholder}
-                    value={newDriver[field]}
-                    onChange={e => setNewDriver(p => ({...p, [field]: e.target.value}))}
-                    maxLength={field==='login_pin'?4:undefined}
-                    style={{width:'100%',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',borderRadius:10,padding:'.75rem 1rem',color:'#f0eefc',fontFamily:"'Nunito',sans-serif",fontSize:'.9rem',outline:'none'}}
-                  />
-                </div>
-              ))}
-              <div style={{background:'rgba(245,166,35,.07)',border:'1px solid rgba(245,166,35,.15)',borderRadius:10,padding:'.75rem 1rem',fontSize:'.8rem',color:'#ffb347'}}>
-                ℹ️ Driver will be created and immediately approved. They can log in at /driver using their phone number and PIN.
-              </div>
-              <button
-                onClick={async () => {
-                  const { name, phone, vehicle_model, vehicle_number, login_pin } = newDriver
-                  if (!name||!phone||!vehicle_model||!vehicle_number||!login_pin) { alert('Fill all fields'); return }
-                  if (login_pin.length !== 4 || !/^\d+$/.test(login_pin)) { alert('PIN must be exactly 4 digits'); return }
-                  setAddingDriver(true)
-                  const { error } = await q(() => supabase.from('drivers').insert({
-                    name: name.trim(),
-                    phone: phone.replace(/\D/g,'').slice(-10),
-                    vehicle_model: vehicle_model.trim(),
-                    vehicle_number: vehicle_number.toUpperCase().trim(),
-                    login_pin: login_pin,
-                    is_approved: true,
-                    status: 'offline',
-                    rating: 5.0,
-                    total_ratings: 0,
-                  }))
-                  setAddingDriver(false)
-                  if (error) { alert('Error: ' + error.message); return }
-                  setShowAddDriver(false)
-                  setNewDriver({ name:'', phone:'', vehicle_model:'', vehicle_number:'', login_pin:'' })
-                  load()
-                  toast.success('Driver added successfully! ✅')
-                }}
-                disabled={addingDriver}
-                style={{background:'linear-gradient(135deg,#f5a623,#ff6b2b)',color:'#0a0a0f',border:'none',borderRadius:12,padding:'.85rem',fontWeight:700,fontSize:'.95rem',cursor:'pointer',fontFamily:"'Nunito',sans-serif",opacity:addingDriver?.5:1}}
-              >
-                {addingDriver ? 'Creating…' : '✅ Create Driver'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Assign Driver Modal */}
       {selRide && (
@@ -564,7 +426,7 @@ function SosAlertsPanel() {
   const [alerts, setAlerts] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   useEffect(() => {
-    q(() => supabase.from('sos_alerts').select('*,profiles:user_id(full_name,phone,emergency_contact_name,emergency_contact_phone),drivers:driver_id(name,phone,vehicle_number)').order('created_at',{ascending:false}).limit(30))
+    q(() => supabase.from('sos_alerts').select('*,profiles(full_name,phone,emergency_contact_name,emergency_contact_phone),drivers(name,phone,vehicle_number)').order('created_at',{ascending:false}).limit(30))
       .then(({data}) => { setAlerts(data||[]); setLoading(false) })
   }, [])
   const resolve = async id => {
@@ -612,6 +474,9 @@ const II = ({ value, onChange, type='text', placeholder='', w=90 }) => (
 export default function OpsDashboard() {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
+  const [showAddDriver, setShowAddDriver] = useState(false)
+  const [newDriver,    setNewDriver]     = useState({ name:'', phone:'', vehicle_model:'', vehicle_number:'', login_pin:'' })
+  const [addingDriver, setAddingDriver]  = useState(false)
   const [tab, setTab]   = useState('overview')
   const [data, setData] = useState({ tiers:[], drivers:[], pendingDrivers:[], bookings:[], deposits:[], users:[] })
   const [editTier, setET]= useState(null)
@@ -623,8 +488,8 @@ export default function OpsDashboard() {
       q(() => supabase.from('discount_tiers').select('*').order('sort_order')),
       q(() => supabase.from('drivers').select('*').eq('is_approved',true).order('created_at',{ascending:false})),
       q(() => supabase.from('drivers').select('*').eq('is_approved',false).order('created_at',{ascending:false})),
-      q(() => supabase.from('bookings').select('id,pickup_address,drop_address,final_fare,discount_amount,status,created_at,scheduled_at,user_id,driver_id,drivers(name,vehicle_number,vehicle_model,rating)').order('created_at',{ascending:false}).limit(100)),
-      q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id').order('created_at',{ascending:false}).limit(60)),
+      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,final_fare,status,created_at,user_id,driver_id,profiles!bookings_user_id_fkey(full_name),drivers(name)').order('created_at',{ascending:false}).limit(60)),
+      q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id,profiles!deposits_user_id_fkey(full_name,phone)').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('profiles').select('*').order('created_at',{ascending:false})),
     ])
     setData({ tiers:t.data||[], drivers:d.data||[], pendingDrivers:pd.data||[], bookings:b.data||[], deposits:dep.data||[], users:u.data||[] })
@@ -735,7 +600,7 @@ export default function OpsDashboard() {
         <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
           <span style={{ color:'#504c74', fontSize:'.82rem' }}>{profile?.full_name || 'Admin'}</span>
           <button className="ops-btn ops-btn-ghost" onClick={load}><RefreshCw size={13}/></button>
-          <button className="ops-btn ops-btn-ghost" onClick={() => navigate('/driver-signup')}><Plus size={13}/> Driver</button>
+          <button className="ops-btn ops-btn-ghost" onClick={() => setShowAddDriver(true)}><Plus size={13}/> Driver</button>
           <button className="ops-btn ops-btn-r" onClick={() => navigate('/emergency-driver')}><AlertTriangle size={13}/></button>
           <button className="ops-btn ops-btn-ghost" onClick={async()=>{ await signOut(); navigate('/ops') }}>
             <LogOut size={13}/> Sign Out
@@ -950,8 +815,8 @@ export default function OpsDashboard() {
                 <tbody>
                   {deposits.map(d => (
                     <tr key={d.id}>
-                      <td style={{ fontWeight:600 }}>{users.find(u=>u.id===d.user_id)?.full_name||'—'}</td>
-                      <td style={{ color:'#9890c2', fontSize:'.8rem' }}>{users.find(u=>u.id===d.user_id)?.phone||'—'}</td>
+                      <td style={{ fontWeight:600 }}>{d.profiles?.full_name||'—'}</td>
+                      <td style={{ color:'#9890c2', fontSize:'.8rem' }}>{d.profiles?.phone||'—'}</td>
                       <td style={{ color:'#ffb347', fontWeight:700 }}>₹{Number(d.amount).toLocaleString()}</td>
                       <td><span className="ops-badge" style={{ background:'rgba(255,179,71,.12)', color:'#ffb347', border:'1px solid rgba(255,179,71,.25)' }}>{d.discount_applied||0}%</span></td>
                       <td style={{ color:'#504c74', fontSize:'.76rem', fontFamily:'monospace' }}>{d.payment_ref||'—'}</td>
@@ -1033,15 +898,12 @@ export default function OpsDashboard() {
             <div style={{ fontWeight:700, fontSize:'1rem', marginBottom:'1.25rem' }}>All Bookings</div>
             <div style={{ overflowX:'auto' }}>
               <table className="ops-tbl" style={{ minWidth:780 }}>
-                <thead><tr><th>User</th><th>Pickup → Drop</th><th>Scheduled</th><th>Fare</th><th>Driver</th><th>Status</th></tr></thead>
+                <thead><tr><th>Receipt</th><th>User</th><th>Pickup</th><th>Fare</th><th>Driver</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id}>
                       <td style={{ fontFamily:'monospace', fontSize:'.76rem', color:'#9890c2' }}>{b.receipt_number||'—'}</td>
-                      <td>
-                        <div style={{fontWeight:600}}>{users.find(u=>u.id===b.user_id)?.full_name||'—'}</div>
-                        <div style={{fontSize:'.75rem',color:'var(--ts)'}}>{users.find(u=>u.id===b.user_id)?.phone||'—'}</div>
-                      </td>
+                      <td style={{ fontWeight:600 }}>{b.profiles?.full_name||'—'}</td>
                       <td style={{ color:'#9890c2', fontSize:'.8rem', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.pickup_address}</td>
                       <td style={{ color:'#ffb347', fontWeight:700 }}>₹{b.final_fare}</td>
                       <td style={{ color:'#9890c2', fontSize:'.83rem' }}>{b.drivers?.name||<span style={{ color:'#e74c3c' }}>None</span>}</td>
@@ -1099,6 +961,39 @@ export default function OpsDashboard() {
           </div>
         )}
       </div>
+
+
+      {/* Add Driver Modal */}
+      {showAddDriver && (
+        <div className="overlay" onClick={()=>setShowAddDriver(false)}>
+          <div style={{background:'#0e0e20',border:'1px solid rgba(255,255,255,.1)',borderRadius:20,padding:'1.75rem',maxWidth:480,width:'100%',maxHeight:'90vh',overflow:'auto'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.5rem'}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:'1.1rem'}}>Add New Driver</div>
+              <button onClick={()=>setShowAddDriver(false)} style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:'1.1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>x</button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+              {[['Full Name','name','text','e.g. Ravi Kumar'],['Phone','phone','tel','10-digit'],['Vehicle Model','vehicle_model','text','e.g. Swift Dzire'],['Vehicle Number','vehicle_number','text','TS 09 AB 1234'],['PIN (4 digits)','login_pin','password','4-digit login PIN']].map(([label,field,type,ph])=>(
+                <div key={field}>
+                  <label style={{fontSize:'.72rem',fontWeight:700,textTransform:'uppercase',color:'#8b87b0',display:'block',marginBottom:'.3rem'}}>{label}</label>
+                  <input type={type} placeholder={ph} value={newDriver[field]} onChange={e=>setNewDriver(p=>({...p,[field]:e.target.value}))} maxLength={field==='login_pin'?4:undefined} style={{width:'100%',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,padding:'.72rem 1rem',color:'#f0eefc',fontFamily:"'Nunito',sans-serif",fontSize:'.9rem',outline:'none'}}/>
+                </div>
+              ))}
+              <button onClick={async()=>{
+                const{name,phone,vehicle_model,vehicle_number,login_pin}=newDriver
+                if(!name||!phone||!vehicle_model||!vehicle_number||!login_pin){toast.error('Fill all fields');return}
+                if(login_pin.length!==4){toast.error('PIN must be 4 digits');return}
+                setAddingDriver(true)
+                const{error}=await q(()=>supabase.from('drivers').insert({name:name.trim(),phone:phone.replace(/[^0-9]/g,'').slice(-10),vehicle_model:vehicle_model.trim(),vehicle_number:vehicle_number.toUpperCase().trim(),login_pin,is_approved:true,status:'offline',rating:5.0,total_ratings:0}))
+                setAddingDriver(false)
+                if(error){toast.error(error.message);return}
+                setShowAddDriver(false);setNewDriver({name:'',phone:'',vehicle_model:'',vehicle_number:'',login_pin:''});load();toast.success('Driver added!')
+              }} disabled={addingDriver} style={{background:'linear-gradient(135deg,#f5a623,#ff6b2b)',color:'#0a0a0f',border:'none',borderRadius:12,padding:'.85rem',fontWeight:700,fontSize:'.95rem',cursor:'pointer',fontFamily:"'Nunito',sans-serif",opacity:addingDriver?0.5:1}}>
+                {addingDriver?'Creating...':'Create Driver'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
