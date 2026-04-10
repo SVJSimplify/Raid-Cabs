@@ -93,8 +93,11 @@ function PendingRidesPanel({ drivers, load }) {
   const [selRide,    setSelRide] = React.useState(null)
   const [selDrv,     setSelDrv]  = React.useState('')
   const [assigning,  setAsg]     = React.useState(false)
-  const [mapRide,    setMapRide] = React.useState(null)   // booking shown in map modal
-  const [driverPos,  setDrvPos]  = React.useState(null)
+  const [mapRide,    setMapRide]      = React.useState(null)
+  const [driverPos,  setDrvPos]       = React.useState(null)
+  const [showAddDriver, setShowAddDriver] = React.useState(false)
+  const [newDriver,  setNewDriver]    = React.useState({ name:'', phone:'', vehicle_model:'', vehicle_number:'', login_pin:'' })
+  const [addingDriver, setAddingDriver] = React.useState(false)
 
   const loadRides = React.useCallback(() => {
     setLoading(true)
@@ -270,6 +273,71 @@ function PendingRidesPanel({ drivers, load }) {
               <span>🏁 Drop: {mapRide.drop_address}</span>
               {!driverPos && mapRide.driver_id && <span style={{color:'var(--gold)'}}>⏳ Waiting for driver to go online…</span>}
               {!mapRide.driver_id && <span style={{color:'var(--gold)'}}>⚠ No driver assigned yet</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Driver Modal */}
+      {showAddDriver && (
+        <div className="overlay" onClick={()=>setShowAddDriver(false)}>
+          <div style={{background:'#0e0e20',border:'1px solid rgba(255,255,255,.1)',borderRadius:20,padding:'1.75rem',maxWidth:480,width:'100%',maxHeight:'90vh',overflow:'auto'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.5rem'}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:'1.1rem'}}>➕ Add New Driver</div>
+              <button onClick={()=>setShowAddDriver(false)} style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:'1.1rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+              {[
+                ['Full Name','name','text','e.g. Ravi Kumar'],
+                ['Phone Number','phone','tel','10-digit number'],
+                ['Vehicle Model','vehicle_model','text','e.g. Maruti Swift Dzire'],
+                ['Vehicle Number','vehicle_number','text','e.g. TS 09 AB 1234'],
+                ['Login PIN (4-digit)','login_pin','password','Driver uses this to log in'],
+              ].map(([label, field, type, placeholder]) => (
+                <div key={field}>
+                  <label style={{fontSize:'.72rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'#8b87b0',display:'block',marginBottom:'.35rem'}}>{label}</label>
+                  <input
+                    type={type}
+                    placeholder={placeholder}
+                    value={newDriver[field]}
+                    onChange={e => setNewDriver(p => ({...p, [field]: e.target.value}))}
+                    maxLength={field==='login_pin'?4:undefined}
+                    style={{width:'100%',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',borderRadius:10,padding:'.75rem 1rem',color:'#f0eefc',fontFamily:"'Nunito',sans-serif",fontSize:'.9rem',outline:'none'}}
+                  />
+                </div>
+              ))}
+              <div style={{background:'rgba(245,166,35,.07)',border:'1px solid rgba(245,166,35,.15)',borderRadius:10,padding:'.75rem 1rem',fontSize:'.8rem',color:'#ffb347'}}>
+                ℹ️ Driver will be created and immediately approved. They can log in at /driver using their phone number and PIN.
+              </div>
+              <button
+                onClick={async () => {
+                  const { name, phone, vehicle_model, vehicle_number, login_pin } = newDriver
+                  if (!name||!phone||!vehicle_model||!vehicle_number||!login_pin) { alert('Fill all fields'); return }
+                  if (login_pin.length !== 4 || !/^\d+$/.test(login_pin)) { alert('PIN must be exactly 4 digits'); return }
+                  setAddingDriver(true)
+                  const { error } = await q(() => supabase.from('drivers').insert({
+                    name: name.trim(),
+                    phone: phone.replace(/\D/g,'').slice(-10),
+                    vehicle_model: vehicle_model.trim(),
+                    vehicle_number: vehicle_number.toUpperCase().trim(),
+                    login_pin: login_pin,
+                    is_approved: true,
+                    status: 'offline',
+                    rating: 5.0,
+                    total_ratings: 0,
+                  }))
+                  setAddingDriver(false)
+                  if (error) { alert('Error: ' + error.message); return }
+                  setShowAddDriver(false)
+                  setNewDriver({ name:'', phone:'', vehicle_model:'', vehicle_number:'', login_pin:'' })
+                  load()
+                  toast.success('Driver added successfully! ✅')
+                }}
+                disabled={addingDriver}
+                style={{background:'linear-gradient(135deg,#f5a623,#ff6b2b)',color:'#0a0a0f',border:'none',borderRadius:12,padding:'.85rem',fontWeight:700,fontSize:'.95rem',cursor:'pointer',fontFamily:"'Nunito',sans-serif",opacity:addingDriver?.5:1}}
+              >
+                {addingDriver ? 'Creating…' : '✅ Create Driver'}
+              </button>
             </div>
           </div>
         </div>
@@ -558,7 +626,7 @@ export default function OpsDashboard() {
       q(() => supabase.from('discount_tiers').select('*').order('sort_order')),
       q(() => supabase.from('drivers').select('*').eq('is_approved',true).order('created_at',{ascending:false})),
       q(() => supabase.from('drivers').select('*').eq('is_approved',false).order('created_at',{ascending:false})),
-      q(() => supabase.from('bookings').select('id,receipt_number,pickup_address,drop_address,final_fare,discount_amount,status,created_at,scheduled_at,user_id,driver_id,drivers(name,vehicle_number)').order('created_at',{ascending:false}).limit(100)),
+      q(() => supabase.from('bookings').select('id,pickup_address,drop_address,final_fare,discount_amount,status,created_at,scheduled_at,user_id,driver_id,drivers(name,vehicle_number,vehicle_model,rating)').order('created_at',{ascending:false}).limit(100)),
       q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('profiles').select('*').order('created_at',{ascending:false})),
     ])
@@ -915,7 +983,7 @@ export default function OpsDashboard() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
               <div style={{ fontWeight:700, fontSize:'1rem' }}>Drivers</div>
               <div style={{ display:'flex', gap:'.5rem' }}>
-                <button className="ops-btn ops-btn-o" onClick={()=>navigate('/driver-signup')}><Plus size={12}/> Add</button>
+                <button className="ops-btn ops-btn-o" onClick={()=>setShowAddDriver(true)}><Plus size={12}/> Add Driver</button>
                 <button className="ops-btn ops-btn-r" onClick={()=>navigate('/emergency-driver')}><AlertTriangle size={12}/> Emergency</button>
               </div>
             </div>
@@ -968,12 +1036,15 @@ export default function OpsDashboard() {
             <div style={{ fontWeight:700, fontSize:'1rem', marginBottom:'1.25rem' }}>All Bookings</div>
             <div style={{ overflowX:'auto' }}>
               <table className="ops-tbl" style={{ minWidth:780 }}>
-                <thead><tr><th>Receipt</th><th>User</th><th>Pickup</th><th>Fare</th><th>Driver</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>User</th><th>Pickup → Drop</th><th>Scheduled</th><th>Fare</th><th>Driver</th><th>Status</th></tr></thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id}>
                       <td style={{ fontFamily:'monospace', fontSize:'.76rem', color:'#9890c2' }}>{b.receipt_number||'—'}</td>
-                      <td style={{ fontWeight:600 }}>{users.find(u=>u.id===b.user_id)?.full_name||'—'}</td>
+                      <td>
+                        <div style={{fontWeight:600}}>{users.find(u=>u.id===b.user_id)?.full_name||'—'}</div>
+                        <div style={{fontSize:'.75rem',color:'var(--ts)'}}>{users.find(u=>u.id===b.user_id)?.phone||'—'}</div>
+                      </td>
                       <td style={{ color:'#9890c2', fontSize:'.8rem', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.pickup_address}</td>
                       <td style={{ color:'#ffb347', fontWeight:700 }}>₹{b.final_fare}</td>
                       <td style={{ color:'#9890c2', fontSize:'.83rem' }}>{b.drivers?.name||<span style={{ color:'#e74c3c' }}>None</span>}</td>
