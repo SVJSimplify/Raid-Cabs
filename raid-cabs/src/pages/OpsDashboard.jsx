@@ -816,11 +816,27 @@ export default function OpsDashboard() {
               <button onClick={()=>setShowAddDriver(false)} style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,width:32,height:32,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
-              {[['Full Name','name','text','e.g. Ravi Kumar'],['Phone','phone','tel','10-digit number'],['Vehicle Model','vehicle_model','text','e.g. Maruti Swift Dzire'],['Vehicle Number','vehicle_number','text','TS 09 AB 1234'],['Login PIN','login_pin','password','4 digits']].map(([label,field,type,ph])=>(
+              {[
+                ['Full Name','name','text','e.g. Ravi Kumar', v=>v.replace(/[^a-zA-Z\s]/g,''), null],
+                ['Phone','phone','tel','10-digit number', v=>v.replace(/[^0-9]/g,''), 10],
+                ['Vehicle Model','vehicle_model','text','e.g. Maruti Swift Dzire', v=>v, null],
+                ['Vehicle Number','vehicle_number','text','TS 09 AB 1234', v=>v.toUpperCase().replace(/[^A-Z0-9\s]/g,''), 12],
+                ['Login PIN','login_pin','password','4 digits only', v=>v.replace(/[^0-9]/g,''), 4],
+              ].map(([label,field,type,ph,sanitize,maxLen])=>(
                 <div key={field}>
                   <label style={{fontSize:'.72rem',fontWeight:700,textTransform:'uppercase',color:'#8b87b0',display:'block',marginBottom:'.3rem'}}>{label}</label>
-                  <input type={type} placeholder={ph} value={newDriver[field]} onChange={e=>setNewDriver(p=>({...p,[field]:e.target.value}))} maxLength={field==='login_pin'?4:undefined}
-                    style={{width:'100%',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,padding:'.72rem 1rem',color:'#f0eefc',fontFamily:"'Nunito',sans-serif",fontSize:'.9rem',outline:'none'}}/>
+                  <input
+                    type={type}
+                    placeholder={ph}
+                    value={newDriver[field]}
+                    onChange={e => setNewDriver(p => ({...p, [field]: sanitize(maxLen ? e.target.value.slice(0, maxLen) : e.target.value)}))}
+                    maxLength={maxLen||undefined}
+                    inputMode={field==='phone'||field==='login_pin'?'numeric':undefined}
+                    style={{width:'100%',background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.1)',borderRadius:10,padding:'.72rem 1rem',color:'#f0eefc',fontFamily:"'Nunito',sans-serif",fontSize:'.9rem',outline:'none'}}
+                  />
+                  {field==='phone'&&newDriver.phone.length>0&&newDriver.phone.length!==10&&<p style={{fontSize:'.7rem',color:'#e74c3c',marginTop:'.2rem'}}>Must be 10 digits</p>}
+                  {field==='login_pin'&&newDriver.login_pin.length>0&&newDriver.login_pin.length!==4&&<p style={{fontSize:'.7rem',color:'#e74c3c',marginTop:'.2rem'}}>Must be exactly 4 digits</p>}
+                  {field==='vehicle_number'&&newDriver.vehicle_number.length>0&&<p style={{fontSize:'.7rem',color:'#8b87b0',marginTop:'.2rem'}}>Format: TS 09 AB 1234</p>}
                 </div>
               ))}
               <div style={{background:'rgba(245,166,35,.07)',border:'1px solid rgba(245,166,35,.15)',borderRadius:10,padding:'.75rem 1rem',fontSize:'.8rem',color:'#ffb347'}}>
