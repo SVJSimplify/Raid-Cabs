@@ -20,7 +20,7 @@ export default function RatingPrompt({ booking, driver, onDone }) {
     }).eq('id', booking.id))
     toast.success('Thanks for rating! ⭐')
     setSaving(false)
-    onDone()
+    onDone(true)  // rated=true
   }
 
   const labels = ['','Terrible','Poor','OK','Good','Excellent!']
@@ -93,7 +93,7 @@ export default function RatingPrompt({ booking, driver, onDone }) {
         />
 
         <div style={{ display:'flex', gap:'.75rem' }}>
-          <button onClick={onDone} className="btn btn-ghost w100">Skip</button>
+          <button onClick={() => onDone(false)} className="btn btn-ghost w100">Skip</button>
           <button onClick={submit} className="btn btn-primary w100 btn-lg" disabled={!stars||saving}>
             {saving ? <span className="spinner"/> : 'Submit Rating'}
           </button>
