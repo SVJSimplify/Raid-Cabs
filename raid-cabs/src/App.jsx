@@ -24,6 +24,7 @@ import ActiveBooking   from './pages/ActiveBooking'
 import OpsLogin        from './pages/OpsLogin'
 import OpsDashboard    from './pages/OpsDashboard'
 import DriverLogin     from './pages/DriverLogin'
+import DriverSignup    from './pages/DriverSignup'
 import DriverHome      from './pages/DriverHome'
 import DriverHistory   from './pages/DriverHistory'
 
