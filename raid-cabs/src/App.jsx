@@ -18,7 +18,6 @@ import Deposit         from './pages/Deposit'
 import BookCab         from './pages/BookCab'
 import History         from './pages/History'
 import Profile         from './pages/Profile'
-import DriverSignup    from './pages/DriverSignup'
 import EmergencyDriver from './pages/EmergencyDriver'
 import NotFound        from './pages/NotFound'
 import ActiveBooking   from './pages/ActiveBooking'
@@ -67,7 +66,6 @@ export default function App() {
 
               {/* ── Public ── */}
               <Route path="/login"         element={<Login/>}/>
-              <Route path="/driver-signup" element={<Shell><DriverSignup/></Shell>}/>
 
               {/* ── Driver Portal ── */}
               <Route path="/driver"         element={<DriverLogin/>}/>
