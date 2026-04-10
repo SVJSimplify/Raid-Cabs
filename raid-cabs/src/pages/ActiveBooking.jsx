@@ -197,7 +197,10 @@ export default function ActiveBooking() {
         : parseInt(data.eta_pickup) || 10
       setCountdown(minsToPickup * 60)
     }
-    if (data.status === 'completed' && !data.user_rating) setShowRating(true)
+    if (data.status === 'completed' && !data.user_rating) {
+      const dismissed = localStorage.getItem(`rating_dismissed_${data.id}`)
+      if (!dismissed) setShowRating(true)
+    }
     setLoading(false)
   }, [user, paramId, navigate])
 
@@ -217,8 +220,10 @@ export default function ActiveBooking() {
           }
           if (r.status === 'completed') {
             setCountdown(null)
-            toast.success('✅ Trip completed! Rate your driver.')
-            setShowRating(true)
+            toast.success('✅ Trip completed! Please pay and rate your driver.')
+            // Only show rating if not already dismissed for this booking
+            const dismissed = localStorage.getItem(`rating_dismissed_${r.id}`)
+            if (!dismissed) setShowRating(true)
           }
           if (r.status === 'cancelled') {
             toast.error('Booking cancelled')
@@ -555,7 +560,11 @@ export default function ActiveBooking() {
 
         {/* Rating Prompt */}
         {showRating && (
-          <RatingPrompt booking={booking} driver={driver} onDone={() => { setShowRating(false); navigate('/dashboard') }}/>
+          <RatingPrompt booking={booking} driver={driver} onDone={(rated) => {
+            setShowRating(false)
+            // Mark as dismissed so it won't show again on refresh
+            if (!rated) localStorage.setItem(`rating_dismissed_${booking.id}`, '1')
+          }}/>
         )}
       </div>
     </div>
