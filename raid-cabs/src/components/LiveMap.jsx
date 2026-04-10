@@ -142,7 +142,7 @@ export default function LiveMap({
           zoom: 13,
           disableDefaultUI: true,
           zoomControl: true,
-          gestureHandling: 'greedy',
+          gestureHandling: 'cooperative',
           mapId: 'raidcabs-dark',
           styles: [
             { elementType:'geometry', stylers:[{ color:'#0a0a0f' }] },
@@ -165,9 +165,14 @@ export default function LiveMap({
     }
 
     // Leaflet fallback
-    const map = L.map(divRef.current, { center:[center.lat,center.lng], zoom:13, zoomControl:true, attributionControl:false })
+    const map = L.map(divRef.current, { center:[center.lat,center.lng], zoom:13, zoomControl:true, attributionControl:false, zoomSnap:0.5, zoomDelta:0.5, wheelPxPerZoomLevel:120 })
     L.tileLayer(TILE_URL, { maxZoom:18, subdomains:'abcd', attribution: KEY ? '© Mappls © OSM' : '© CARTO' }).addTo(map)
     L.control.attribution({ prefix:false }).addTo(map)
+    // Track when user manually zooms/pans — stop auto-zoom after that
+    map._userInteracted = false
+    map.on('zoomstart', (e) => { if (e.originalEvent) map._userInteracted = true })
+    map.on('dragstart', () => { map._userInteracted = true })
+
     mapRef.current = map
     return () => {
       if (zoomTimer.current) clearTimeout(zoomTimer.current)
@@ -184,28 +189,34 @@ export default function LiveMap({
     if (map._type === 'google') {
       const gmap = map._gmap
 
-      const gIcon = (emoji, bg) => ({
-        content: Object.assign(document.createElement('div'), {
-          innerHTML: `<div style="width:40px;height:40px;border-radius:50%;background:${bg};border:2.5px solid rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 14px rgba(0,0,0,.55);">${emoji}</div>`
+      const makeGMarker = (latlng, label, color) => {
+        return new window.google.maps.Marker({
+          map: gmap,
+          position: latlng,
+          title: label,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: color,
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2.5,
+          }
         })
-      })
+      }
 
       if (userPos) {
-        if (marksRef.current.user) marksRef.current.user.position = { lat:userPos.lat, lng:userPos.lng }
-        else marksRef.current.user = new window.google.maps.marker.AdvancedMarkerElement({ map:gmap, position:{lat:userPos.lat,lng:userPos.lng}, content:gIcon('📍','#3b82f6').content })
+        if (marksRef.current.user) marksRef.current.user.setPosition({lat:userPos.lat,lng:userPos.lng})
+        else marksRef.current.user = makeGMarker({lat:userPos.lat,lng:userPos.lng}, 'Your Pickup', '#3b82f6')
       }
       if (driverPos) {
-        const deg = prevDrv.current ? getBearing(prevDrv.current, driverPos) : 0
         prevDrv.current = driverPos
-        const carEl = Object.assign(document.createElement('div'), {
-          innerHTML:`<div style="width:44px;height:44px;transform:rotate(${deg}deg);transition:transform .5s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 4px 12px rgba(0,0,0,.55));"><svg viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><circle cx="22" cy="22" r="21" fill="#22c55e" stroke="rgba(255,255,255,.95)" stroke-width="2"/><rect x="13" y="18" width="18" height="10" rx="3" fill="#0a0a0f"/><rect x="16" y="14" width="12" height="7" rx="2" fill="#0a0a0f"/><circle cx="14" cy="22" r="1.5" fill="#f5a623" opacity=".9"/></svg></div>`
-        })
-        if (marksRef.current.driver) { marksRef.current.driver.position = {lat:driverPos.lat,lng:driverPos.lng}; marksRef.current.driver.content = carEl }
-        else marksRef.current.driver = new window.google.maps.marker.AdvancedMarkerElement({ map:gmap, position:{lat:driverPos.lat,lng:driverPos.lng}, content:carEl, zIndex:100 })
+        if (marksRef.current.driver) marksRef.current.driver.setPosition({lat:driverPos.lat,lng:driverPos.lng})
+        else marksRef.current.driver = makeGMarker({lat:driverPos.lat,lng:driverPos.lng}, 'Driver', '#22c55e')
       }
       if (dropPos) {
-        if (marksRef.current.drop) marksRef.current.drop.position = {lat:dropPos.lat,lng:dropPos.lng}
-        else marksRef.current.drop = new window.google.maps.marker.AdvancedMarkerElement({ map:gmap, position:{lat:dropPos.lat,lng:dropPos.lng}, content:gIcon('🏁','#f5a623').content })
+        if (marksRef.current.drop) marksRef.current.drop.setPosition({lat:dropPos.lat,lng:dropPos.lng})
+        else marksRef.current.drop = makeGMarker({lat:dropPos.lat,lng:dropPos.lng}, dropPos.label||'Destination', '#f5a623')
       }
 
       // Lines
@@ -279,22 +290,25 @@ export default function LiveMap({
 
     // Smart zoom
     if (zoomTimer.current) clearTimeout(zoomTimer.current)
-    zoomTimer.current = setTimeout(() => {
-      const pts = []
-      if (userPos)   pts.push([userPos.lat,   userPos.lng])
-      if (driverPos) pts.push([driverPos.lat,  driverPos.lng])
-      if (dropPos)   pts.push([dropPos.lat,    dropPos.lng])
+    // Only auto-zoom if user hasn't manually interacted with the map
+    if (!map._userInteracted) {
+      zoomTimer.current = setTimeout(() => {
+        const pts = []
+        if (userPos)   pts.push([userPos.lat,   userPos.lng])
+        if (driverPos) pts.push([driverPos.lat,  driverPos.lng])
+        if (dropPos)   pts.push([dropPos.lat,    dropPos.lng])
 
-      if (driverPos && userPos) {
-        const dist = haversineKm(driverPos, userPos)
-        if (dist < 0.5) map.setView([driverPos.lat,driverPos.lng], 16, { animate:true })
-        else if (pts.length > 1) map.fitBounds(pts, { padding:[60,50], maxZoom: dist < 3 ? 14 : 12, animate:true })
-      } else if (pts.length > 1) {
-        map.fitBounds(pts, { padding:[65,55], maxZoom:15, animate:true })
-      } else if (pts.length === 1) {
-        map.setView(pts[0], 14, { animate:true })
-      }
-    }, 800)
+        if (driverPos && userPos) {
+          const dist = haversineKm(driverPos, userPos)
+          if (dist < 0.5) map.setView([driverPos.lat,driverPos.lng], 16, { animate:true })
+          else if (pts.length > 1) map.fitBounds(pts, { padding:[60,50], maxZoom: dist < 3 ? 14 : 12, animate:true })
+        } else if (pts.length > 1) {
+          map.fitBounds(pts, { padding:[65,55], maxZoom:15, animate:true })
+        } else if (pts.length === 1) {
+          map.setView(pts[0], 14, { animate:true })
+        }
+      }, 800)
+    }
 
   }, [userPos, driverPos, dropPos, routeGeo, adminMode, isInRide])
 
