@@ -81,7 +81,8 @@ export default function App() {
               <Route path="/book"      element={<ProtectedRoute><Shell><BookCab/></Shell></ProtectedRoute>}/>
               <Route path="/history"   element={<ProtectedRoute><Shell><History/></Shell></ProtectedRoute>}/>
               <Route path="/profile"   element={<ProtectedRoute><Shell><Profile/></Shell></ProtectedRoute>}/>
-              <Route path="/emergency-driver" element={<OpsRoute><Shell><EmergencyDriver/></Shell></OpsRoute>}/><Route path="/driver-signup" element={<Shell><DriverSignup/></Shell>}/>
+              <Route path="/emergency-driver" element={<OpsRoute><Shell><EmergencyDriver/></Shell></OpsRoute>}/>
+
               {/* ── Admin Portal ── */}
               <Route path={`/${OPS_PATH}`}           element={<OpsLogin/>}/>
               <Route path={`/${OPS_PATH}/dashboard`} element={<OpsRoute><OpsDashboard/></OpsRoute>}/>
