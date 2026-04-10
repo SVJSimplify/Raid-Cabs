@@ -16,7 +16,7 @@ function loadGoogleMaps() {
   if (_googlePromise) return _googlePromise
   _googlePromise = new Promise((resolve, reject) => {
     const s = document.createElement('script')
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_KEY}&libraries=marker`
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_KEY}&libraries=marker&loading=async`
     s.async = true
     s.onload  = resolve
     s.onerror = reject
