@@ -3,7 +3,7 @@ import { supabase, ENV_OK } from '../lib/supabase'
 
 const Ctx = createContext(null)
 
-// Phone-only users get a fake internal email — never shown to them
+// Phone-only users get a fake internal email —- never shown to them
 const phoneToEmail = phone => `${phone.replace(/\D/g,'').slice(-10)}@raidcabs.local`
 
 // Generate 4-digit ride code
