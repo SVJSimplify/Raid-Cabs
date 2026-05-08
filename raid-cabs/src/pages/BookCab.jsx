@@ -9,9 +9,27 @@ import toast from 'react-hot-toast'
 
 const MIN_ADVANCE_HOURS = 1
 
+const ACTIVE_STATUSES = ['pending_admin', 'confirmed', 'en_route', 'in_progress']
+
 export default function BookCab() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
+
+  // Redirect to active booking if one already exists
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('user_id', user.id)
+      .in('status', ACTIVE_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.id) navigate(`/active-booking/${data.id}`, { replace: true })
+      })
+  }, [user, navigate])
 
   // Pickup
   const [pickup,      setPickup]    = useState('')
@@ -341,7 +359,7 @@ export default function BookCab() {
   return (
     <div className="main page-pad">
       <div style={{ maxWidth:480, margin:'0 auto', textAlign:'center' }}>
-        <div style={{ width:84, height:84, background:'rgba(245,166,35,.1)', border:'2px solid rgba(245,166,35,.3)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.5rem' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg</div>
+        <div style={{ width:84, height:84, background:'rgba(245,166,35,.1)', border:'2px solid rgba(245,166,35,.3)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.5rem' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg></div>
         <h1 className="h2 mb2">Booking Submitted!</h1>
         <p style={{ color:'var(--ts)', lineHeight:1.75, marginBottom:'2rem' }}>Admin will review and assign a driver. Check your dashboard for updates.</p>
         <div className="card mb3" style={{ textAlign:'left' }}>
