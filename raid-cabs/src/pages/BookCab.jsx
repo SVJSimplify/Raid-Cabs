@@ -105,7 +105,7 @@ export default function BookCab() {
         setUserPos({ lat, lng })
         const address = await reverseGeocode(lat, lng)
         setPickup(address); setShowSugs(false)
-        toast.success('📍 Location detected!')
+        toast.success('Location detected')
         setLocating(false)
       },
       () => { toast.error('Could not get location'); setLocating(false) },
@@ -160,7 +160,7 @@ export default function BookCab() {
       eta_drop:        `${routeInfo?.tripMins} mins`,
     }))
     if (error) { toast.error('Booking failed: ' + error.message); setStep('confirm'); return }
-    toast.success('📋 Booking sent to admin!')
+    toast.success('Booking sent to admin!')
     setStep('done')
   }
 
@@ -200,7 +200,7 @@ export default function BookCab() {
       <div className="page-inner">
         <button className="btn btn-ghost btn-sm mb2" onClick={() => navigate('/dashboard')}><ArrowLeft size={14}/> Back</button>
         <div className="mb3">
-          <h1 className="h1">Schedule a Ride 📅</h1>
+          <h1 className="h1">Schedule a Ride</h1>
           <p className="sub">Book in advance — admin assigns your driver</p>
         </div>
         <div className="two-col-layout">
@@ -210,7 +210,7 @@ export default function BookCab() {
 
                 {/* PICKUP */}
                 <div className="fg">
-                  <label className="label">📍 Pickup Location</label>
+                  <label className="label">Pickup Location</label>
                   <div style={{ position:'relative' }}>
                     <div className="input-wrap">
                       <Search size={15} className="ico"/>
@@ -223,7 +223,7 @@ export default function BookCab() {
                       {pickup && <button type="button" onClick={() => { setPickup(''); setSugs([]); setUserPos(null); setFarePreview(null); pickupRef.current?.focus() }}
                         style={{ position:'absolute', right:'.82rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--tm)', display:'flex', padding:0 }}><X size={14}/></button>}
                     </div>
-                    <SugList sugs={sugs} loading={sugLoad} onSelect={selectPickup} show={showSugs} header="📍 Nearby Locations"/>
+                    <SugList sugs={sugs} loading={sugLoad} onSelect={selectPickup} show={showSugs} header="Nearby Locations"/>
                   </div>
                   <button type="button" className="btn btn-outline btn-sm" style={{ marginTop:'.5rem', alignSelf:'flex-start' }} onClick={detectGPS} disabled={locating}>
                     {locating ? <span className="spinner" style={{ width:13,height:13 }}/> : <Navigation size={13}/>}
@@ -237,7 +237,7 @@ export default function BookCab() {
 
                 {/* DROP — fully searchable */}
                 <div className="fg">
-                  <label className="label">🏁 Drop Location</label>
+                  <label className="label">Drop Location</label>
                   <div style={{ position:'relative' }}>
                     <div className="input-wrap">
                       <MapPin size={15} className="ico"/>
@@ -250,7 +250,7 @@ export default function BookCab() {
                       {drop && <button type="button" onClick={() => { setDrop(''); setDropSugs([]); setDropPos(null); setFarePreview(null); dropRef.current?.focus() }}
                         style={{ position:'absolute', right:'.82rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--tm)', display:'flex', padding:0 }}><X size={14}/></button>}
                     </div>
-                    <SugList sugs={dropSugs} loading={dropSugLoad} onSelect={selectDrop} show={showDropSugs} header="🏁 Popular Destinations"/>
+                    <SugList sugs={dropSugs} loading={dropSugLoad} onSelect={selectDrop} show={showDropSugs} header="Popular Destinations"/>
                   </div>
                   {dropPos && <p style={{ fontSize:'.73rem', color:'var(--green)', display:'flex', alignItems:'center', gap:4, marginTop:'.35rem' }}><CheckCircle size={11}/> Drop pinned — {drop}</p>}
                 </div>
@@ -275,7 +275,7 @@ export default function BookCab() {
                       <div>
                         <div style={{ fontSize:'.72rem', color:'var(--ts)', textTransform:'uppercase', letterSpacing:'.07em' }}>Estimated Fare</div>
                         {farePreview.discount > 0 && <div style={{ fontSize:'.73rem', color:'var(--green)', marginTop:2 }}>₹{farePreview.discount} concession applied</div>}
-                        {routeInfo?.source === 'ors' && <div style={{ fontSize:'.72rem', color:'var(--ts)', marginTop:1 }}>🛣️ Real road distance</div>}
+                        {routeInfo?.source === 'ors' && <div style={{ fontSize:'.72rem', color:'var(--ts)', marginTop:1 }}>Real road distance</div>}
                       </div>
                       <div style={{ fontFamily:'var(--fd)', fontSize:'1.65rem', fontWeight:900, color:'var(--gold)' }}>₹{farePreview.final}</div>
                     </div>
@@ -324,7 +324,7 @@ export default function BookCab() {
           </div>
           <div style={{ display:'flex', gap:'.85rem' }}>
             <button className="btn btn-outline w100" onClick={() => setStep('form')}>← Back</button>
-            <button className="btn btn-primary w100 btn-lg" onClick={handleSubmit}>📤 Submit to Admin</button>
+            <button className="btn btn-primary w100 btn-lg" onClick={handleSubmit}>Submit to Admin</button>
           </div>
         </div>
         <LiveMap userPos={userPos} dropPos={dropPos ? { ...dropPos, label: drop } : null} routeGeo={routeGeo} height={440}/>
@@ -341,11 +341,11 @@ export default function BookCab() {
   return (
     <div className="main page-pad">
       <div style={{ maxWidth:480, margin:'0 auto', textAlign:'center' }}>
-        <div style={{ width:84, height:84, background:'rgba(245,166,35,.1)', border:'2px solid rgba(245,166,35,.3)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.5rem', fontSize:'2.5rem' }}>📋</div>
+        <div style={{ width:84, height:84, background:'rgba(245,166,35,.1)', border:'2px solid rgba(245,166,35,.3)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.5rem' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg</div>
         <h1 className="h2 mb2">Booking Submitted!</h1>
         <p style={{ color:'var(--ts)', lineHeight:1.75, marginBottom:'2rem' }}>Admin will review and assign a driver. Check your dashboard for updates.</p>
         <div className="card mb3" style={{ textAlign:'left' }}>
-          {[['Pickup',pickup],['Drop',drop],['Scheduled',new Date(schedTime).toLocaleString('en-IN',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})],['Fare',`₹${fare?.final}${fare?.discount>0?` (−₹${fare?.discount} concession)`:''}`],['Status','⏳ Pending Admin Approval']].map(([l,v])=>(
+          {[['Pickup',pickup],['Drop',drop],['Scheduled',new Date(schedTime).toLocaleString('en-IN',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})],['Fare',`₹${fare?.final}${fare?.discount>0?` (−₹${fare?.discount} concession)`:''}`],['Status','Pending Admin Approval']].map(([l,v])=>(
             <div key={l} className="fare-r"><span style={{ color:'var(--tm)' }}>{l}</span><span style={{ fontWeight:600, color:l==='Status'?'var(--gold)':'var(--tp)', maxWidth:'55%', textAlign:'right', fontSize:'.86rem' }}>{v}</span></div>
           ))}
         </div>

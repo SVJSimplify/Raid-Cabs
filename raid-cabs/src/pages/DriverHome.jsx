@@ -4,7 +4,7 @@ import { useDriver } from '../contexts/DriverContext'
 import { supabase, q } from '../lib/supabase'
 import { haversineKm } from '../lib/location'
 import LiveMap from '../components/LiveMap'
-import { Phone, History, LogOut, CheckCircle, XCircle, Clock, Zap, AlertTriangle, Navigation, MapPin, ChevronDown } from 'lucide-react'
+import { Phone, History, LogOut, CheckCircle, XCircle, Clock, Zap, AlertTriangle, Navigation, MapPin, ChevronDown, Car } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 function Stars({ v }) {
@@ -164,7 +164,7 @@ export default function DriverHome() {
   const toggleOnline = async () => {
     const goOnline = driver.status === 'offline'
     await setOnlineStatus(goOnline)
-    toast.success(goOnline ? 'You are now online 🟢' : 'You are now offline')
+    toast.success(goOnline ? 'You are now online' : 'You are now offline')
   }
 
   const isOnline = driver?.status !== 'offline'
@@ -300,7 +300,7 @@ export default function DriverHome() {
                     driverPos={driverPos}
                     dropPos={currentBooking?.drop_lat ? { lat: parseFloat(currentBooking.drop_lat), lng: parseFloat(currentBooking.drop_lng), label: currentBooking.drop_address || 'Drop Off' } : null}
                     height={300}
-                    liveLabel="🟢 Tracking live"
+                    liveLabel="Driver GPS live"
                   />
                   {gpsError && <p style={{ fontSize:'.74rem', color:'#e74c3c', marginTop:'.5rem', textAlign:'center' }}>⚠ Enable GPS to show your location on map</p>}
                 </>
@@ -312,7 +312,7 @@ export default function DriverHome() {
               <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:'1rem' }}>
                 <span className="pulse-dot" style={{ background: currentBooking.status==='in_progress'?'#ffb347':'#2ecc71' }}/>
                 <span style={{ fontFamily:"'Playfair Display',serif", fontWeight:700, fontSize:'.95rem' }}>
-                  {currentBooking.status === 'in_progress' ? '🚗 Trip in Progress' : '📋 New Ride Assigned'}
+                  {currentBooking.status === 'in_progress' ? 'Trip in Progress' : 'New Ride Assigned'}
                 </span>
                 <span style={{ marginLeft:'auto', padding:'.2rem .6rem', borderRadius:99, fontSize:'.66rem', fontWeight:800, textTransform:'uppercase', letterSpacing:'.06em', background: currentBooking.status==='in_progress'?'rgba(255,179,71,.12)':'rgba(46,204,113,.12)', color: currentBooking.status==='in_progress'?'#ffb347':'#2ecc71', border:`1px solid ${currentBooking.status==='in_progress'?'rgba(255,179,71,.3)':'rgba(46,204,113,.3)'}` }}>
                   {currentBooking.status.replace('_',' ')}
@@ -349,16 +349,16 @@ export default function DriverHome() {
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', gap:'.4rem' }}>
                       <div style={{ display:'flex', gap:'.6rem', fontSize:'.82rem' }}>
-                        <span style={{ color:'#3b82f6', flexShrink:0 }}>📍</span>
+                        <MapPin size={13} color="#3b82f6" style={{ flexShrink:0 }}/>
                         <span style={{ color:'#ede8d8', fontWeight:600 }}>{currentBooking.pickup_address?.split(',')[0] || '—'}</span>
                       </div>
                       <div style={{ display:'flex', gap:'.6rem', fontSize:'.82rem' }}>
-                        <span style={{ color:'#ffb347', flexShrink:0 }}>🏁</span>
+                        <MapPin size={14} color="#ffb347" style={{ flexShrink:0 }}/>
                         <span style={{ color:'#9890c2' }}>{currentBooking.drop_address?.split(',')[0] || '—'}</span>
                       </div>
                       {currentBooking.scheduled_at && (
                         <div style={{ display:'flex', gap:'.6rem', fontSize:'.82rem', marginTop:'.25rem' }}>
-                          <span style={{ flexShrink:0 }}>🕐</span>
+                          <Clock size={13} color="var(--ts)" style={{ flexShrink:0 }}/>
                           <span style={{ color:'#ffb347', fontWeight:700 }}>
                             {new Date(currentBooking.scheduled_at).toLocaleString('en-IN',{weekday:'short',hour:'2-digit',minute:'2-digit'})}
                             {' · ₹'}{currentBooking.final_fare}
@@ -369,7 +369,7 @@ export default function DriverHome() {
                     </div>
                   </div>
                   {/* START RIDE button — prominent */}
-                  <button className="dh-btn" onClick={() => doAction('in_progress','🚗 Ride started!')} disabled={actionLoading}
+                  <button className="dh-btn" onClick={() => doAction('in_progress','Ride started!')} disabled={actionLoading}
                     style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', fontSize:'1rem', fontWeight:800, padding:'1rem', marginBottom:'.6rem', boxShadow:'0 4px 20px rgba(34,197,94,.4)' }}>
                     {actionLoading ? <Spinner/> : <><Zap size={18}/> Start Ride</>}
                   </button>
@@ -381,16 +381,16 @@ export default function DriverHome() {
               {currentBooking.status === 'en_route' && (
                 <>
                   <div style={{ padding:'1rem', background:'rgba(59,130,246,.08)', border:'1px solid rgba(59,130,246,.25)', borderRadius:12, marginBottom:'.75rem', textAlign:'center' }}>
-                    <div style={{ fontSize:'1.4rem', marginBottom:'.3rem' }}>🚗</div>
+                    <div style={{ display:"flex",justifyContent:"center",marginBottom:".3rem" }}><Car size={22} color="var(--gold)"/></div>
                     <div style={{ fontWeight:700, fontSize:'.9rem', color:'#3b82f6', marginBottom:'.2rem' }}>En Route to Pickup</div>
                     <div style={{ fontSize:'.78rem', color:'#9890c2', lineHeight:1.5 }}>
                       When the passenger is in the vehicle and gives you the go-ahead, tap Start Ride.
                     </div>
                     <div style={{ marginTop:'.5rem', fontSize:'.78rem', color:'#9890c2' }}>
-                      📍 {currentBooking.pickup_address?.split(',')[0]}
+                      {currentBooking.pickup_address?.split(',')[0]}
                     </div>
                   </div>
-                  <button className="dh-btn dh-g" onClick={() => doAction('in_progress','🚀 Ride started!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
+                  <button className="dh-btn dh-g" onClick={() => doAction('in_progress','Ride started!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
                     {actionLoading ? <Spinner/> : <><Zap size={16}/> Start Ride</>}
                   </button>
                   <button className="dh-btn dh-r" onClick={() => doAction('cancelled','Booking cancelled')} disabled={actionLoading}>
@@ -408,10 +408,10 @@ export default function DriverHome() {
                       {fmtTimer(rideSeconds)}
                     </div>
                     <div style={{ fontSize:'.75rem', color:'#504c74', marginTop:'.35rem' }}>
-                      🎯 Drop: {currentBooking.drop_address?.split(',')[0] || 'Destination'}
+                      Drop: {currentBooking.drop_address?.split(',')[0] || 'Destination'}
                     </div>
                   </div>
-                  <button className="dh-btn dh-g" onClick={() => doAction('completed','✅ Ride ended — passenger will see payment QR!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
+                  <button className="dh-btn dh-g" onClick={() => doAction('completed','Ride ended — passenger will see payment QR!')} disabled={actionLoading} style={{ marginBottom:'.5rem' }}>
                     {actionLoading?<Spinner/>:<><CheckCircle size={16}/> End Ride</>}
                   </button>
                   <button className="dh-btn dh-ghost" onClick={() => setShowSos(true)}>
@@ -423,7 +423,7 @@ export default function DriverHome() {
 
             {/* Call passenger */}
             <div className="dh-card" style={{ display:'flex', alignItems:'center', gap:'.9rem' }}>
-              <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(52,152,219,.1)', border:'1px solid rgba(52,152,219,.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'1.1rem' }}>👤</div>
+              <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(52,152,219,.1)', border:'1px solid rgba(52,152,219,.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'1.1rem' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
               <div style={{ flex:1 }}><div style={{ fontWeight:700, fontSize:'.87rem' }}>Passenger</div><div style={{ fontSize:'.74rem', color:'#504c74' }}>Call if you cannot find them</div></div>
               <a href={`tel:${currentBooking.user_phone||''}`} style={{ background:'rgba(52,152,219,.1)', border:'1px solid rgba(52,152,219,.22)', color:'#3498db', borderRadius:8, padding:'.45rem .9rem', fontWeight:700, fontSize:'.82rem', textDecoration:'none', display:'flex', alignItems:'center', gap:5 }}>
                 <Phone size={13}/> Call
@@ -437,11 +437,11 @@ export default function DriverHome() {
       {showSos && (
         <div className="sos-overlay" onClick={() => setShowSos(false)}>
           <div style={{ background:'#0e0e20', border:'2px solid rgba(231,76,60,.4)', borderRadius:18, padding:'2rem', maxWidth:360, width:'100%', textAlign:'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize:'2.5rem', marginBottom:'1rem' }}>🆘</div>
+            <div style={{ width:48,height:48,borderRadius:14,background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.2)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem" }}><AlertTriangle size={22} color="#ef4444"/></div>
             <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.15rem', color:'#ede8d8', marginBottom:'.65rem' }}>SOS Emergency</h3>
             <p style={{ color:'#9890c2', fontSize:'.84rem', lineHeight:1.65, marginBottom:'1.5rem' }}>Admin will be notified immediately.</p>
             <div style={{ display:'flex', gap:'.75rem' }}>
-              <button className="dh-btn dh-r" onClick={() => { toast.error('🆘 SOS sent! Admin notified.',{duration:6000,icon:'🆘'}); setShowSos(false) }}>
+              <button className="dh-btn dh-r" onClick={() => { toast.error('SOS sent! Admin notified.',{duration:6000}); setShowSos(false) }}>
                 <AlertTriangle size={14}/> Send SOS
               </button>
               <button className="dh-btn dh-ghost" onClick={() => setShowSos(false)}>Cancel</button>

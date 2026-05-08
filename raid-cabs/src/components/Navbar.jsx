@@ -53,7 +53,7 @@ export default function Navbar() {
 
       <div className="nav-links">
         <Link to="/dashboard" className={at('/dashboard') + ' hide-mob'}><LayoutDashboard size={14}/> Home</Link>
-        <Link to="/book"      className={at('/book')      + ' hide-mob'}>🚖 Book</Link>
+        <Link to="/book"      className={at('/book')      + ' hide-mob'}><Car size={14}/> Book</Link>
         <Link to="/history"   className={at('/history')   + ' hide-mob'}><History size={14}/> Trips</Link>
 
         <div style={{ position:'relative' }} ref={ref}>
@@ -76,7 +76,7 @@ export default function Navbar() {
 
               {[
                 ['/dashboard',  <LayoutDashboard size={13}/>, 'Dashboard'],
-                ['/book',       '🚖',                         'Book a Cab'],
+                ['/book',       <Car size={13}/>,            'Book a Cab'],
                 ['/deposit',    <CreditCard size={13}/>,      'Deposit Money'],
                 ['/history',    <History size={13}/>,         'My Trips'],
                 ['/profile',    <User size={13}/>,            'Profile & Safety'],

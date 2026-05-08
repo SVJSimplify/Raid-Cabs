@@ -12,7 +12,7 @@ import LiveMap from '../components/LiveMap'
 import SafetyPanel from '../components/SafetyPanel'
 import ChatWidget from '../components/ChatWidget'
 import RatingPrompt from '../components/RatingPrompt'
-import { Phone, MessageSquare, ArrowLeft, CheckCircle, Clock, MapPin, Navigation, Shield, Lock } from 'lucide-react'
+import { Phone, MessageSquare, ArrowLeft, CheckCircle, Clock, MapPin, Navigation, Shield, Lock, KeyRound } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const CANCEL_REASONS = [
@@ -90,7 +90,7 @@ function PinEntry({ onVerified }) {
 
   return (
     <div className="card mb3" style={{ border:'2px solid rgba(245,166,35,.3)', background:'rgba(245,166,35,.04)', textAlign:'center' }}>
-      <div style={{ fontSize:'2rem', marginBottom:'.65rem' }}>🔑</div>
+      <div style={{ width:44,height:44,borderRadius:12,background:"rgba(245,166,35,.1)",border:"1px solid rgba(245,166,35,.2)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto .65rem" }}><KeyRound size={20} color="var(--gold)"/></div>
       <h3 style={{ fontFamily:'var(--fd)', fontSize:'1.1rem', marginBottom:'.4rem' }}>Enter Your Ride PIN</h3>
       <p style={{ color:'var(--ts)', fontSize:'.83rem', lineHeight:1.6, marginBottom:'1.25rem' }}>
         Your driver has arrived. Enter your 4-digit Ride PIN to start the trip.
@@ -216,11 +216,11 @@ export default function ActiveBooking() {
           if (r.status === 'in_progress') {
             setPinVerified(true)
             setCountdown(null)
-            toast.success('🚗 Ride started! Enjoy your trip.')
+            toast.success('Ride started! Enjoy your trip.')
           }
           if (r.status === 'completed') {
             setCountdown(null)
-            toast.success('✅ Trip completed! Please pay and rate your driver.')
+            toast.success('Trip completed! Please pay and rate your driver.')
             // Only show rating if not already dismissed for this booking
             const dismissed = localStorage.getItem(`rating_dismissed_${r.id}`)
             if (!dismissed) setShowRating(true)
@@ -300,7 +300,7 @@ export default function ActiveBooking() {
       return
     }
     // Driver's app will detect in_progress via realtime and update their view
-    toast.success('🚗 Ride started! Your driver is ready.')
+    toast.success('Ride started! Your driver is ready.')
     setBooking(b => ({ ...b, status:'in_progress' }))
     setStarting(false)
   }
@@ -356,7 +356,7 @@ export default function ActiveBooking() {
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:'.85rem' }}>
             <div style={{ fontSize:'2.5rem', flexShrink:0 }}>
-              {isCompleted ? '✅' : isInProgress ? '🚗' : isPending ? '📋' : isEnRoute ? '🚗' : driverArrived ? '🎉' : '✅'}
+              {isCompleted ? '✓' : isInProgress ? '→' : isPending ? '…' : isEnRoute ? '↗' : driverArrived ? '!' : '✓'}
             </div>
             <div style={{ flex:1 }}>
               <h1 className="h2" style={{ marginBottom:'.25rem' }}>
@@ -482,7 +482,7 @@ export default function ActiveBooking() {
               <div style={{ marginTop:'1.25rem' }}>
                 {/* Payment QR */}
                 <div style={{ background:'rgba(34,197,94,.04)', border:'1px solid rgba(34,197,94,.2)', borderRadius:'var(--r)', padding:'1.5rem', textAlign:'center', marginBottom:'1rem' }}>
-                  <div style={{ fontFamily:'var(--fd)', fontWeight:700, fontSize:'1rem', marginBottom:'.25rem' }}>💳 Pay Your Fare</div>
+                  <div style={{ fontFamily:'var(--fd)', fontWeight:700, fontSize:'1rem', marginBottom:'.25rem' }}>Pay Your Fare</div>
                   <div style={{ color:'var(--ts)', fontSize:'.82rem', marginBottom:'1.25rem' }}>
                     Scan the QR code to pay <strong style={{ color:'var(--gold)' }}>₹{booking.final_fare}</strong> via UPI
                   </div>
@@ -515,7 +515,7 @@ export default function ActiveBooking() {
               dropPos={dropPos}
               height={440}
               isInRide={isInProgress}
-              liveLabel={driverPos ? '🟢 Driver GPS live' : null}
+              liveLabel={driverPos ? "Driver GPS live" : null}
             />
             {!driverPos && isConfirmed && (
               <p style={{ fontSize:'.75rem', color:'var(--tm)', textAlign:'center', marginTop:'.6rem' }}>

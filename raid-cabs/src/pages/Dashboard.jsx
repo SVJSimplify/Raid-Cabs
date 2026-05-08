@@ -74,11 +74,11 @@ export default function Dashboard() {
 
   const tier = () => {
     const d = profile?.discount_percent||0
-    if (d>=25) return { label:'💎 Diamond', color:'#a78bfa', next:null }
-    if (d>=20) return { label:'🏆 Platinum', color:'#60a5fa', next:'💎 Diamond at ₹50k deposit' }
-    if (d>=15) return { label:'🥇 Gold', color:'var(--gold)', next:'🏆 Platinum at ₹25k deposit' }
-    if (d>=10) return { label:'🥈 Silver', color:'#94a3b8', next:'🥇 Gold at ₹10k deposit' }
-    return { label:'🌱 Basic', color:'var(--ts)', next:'🥈 Silver — deposit ₹5,000' }
+    if (d>=25) return { label:'Diamond', color:'#a78bfa', next:null }
+    if (d>=20) return { label:'Platinum', color:'#60a5fa', next:'Diamond at ₹50k deposit' }
+    if (d>=15) return { label:'Gold', color:'var(--gold)', next:'Platinum at ₹25k deposit' }
+    if (d>=10) return { label:'Silver', color:'#94a3b8', next:'Gold at ₹10k deposit' }
+    return { label:'Basic', color:'var(--ts)', next:'Silver — deposit ₹5,000' }
   }
 
   const t = tier()
@@ -105,7 +105,7 @@ export default function Dashboard() {
       {/* Greeting */}
       <div style={{ marginBottom:'1.75rem' }}>
         <div style={{ fontSize:'.82rem', color:'var(--ts)', marginBottom:'.2rem' }}>{greeting},</div>
-        <h1 className="h1">{profile?.full_name?.split(' ')[0] || 'Welcome'} 👋</h1>
+        <h1 className="h1">{profile?.full_name?.split(' ')[0] || 'Welcome'}</h1>
         {drivers > 0
           ? <p style={{ color:'var(--green)', fontSize:'.83rem', marginTop:'.4rem', display:'flex', alignItems:'center', gap:5 }}>
               <span className="dot" style={{ width:7, height:7 }}/> {drivers} driver{drivers!==1?'s':''} available now
@@ -126,8 +126,8 @@ export default function Dashboard() {
             <div style={{ fontFamily:'var(--fd)', fontSize:'1.3rem', fontWeight:700 }}>Where are you?</div>
             <div style={{ color:'var(--ts)', fontSize:'.83rem', marginTop:.25+'rem' }}>Tap to enter pickup and book</div>
           </div>
-          <div style={{ width:48, height:48, background:'linear-gradient(135deg,var(--gold),var(--orange))', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>
-            🚖
+          <div style={{ width:48, height:48, background:'linear-gradient(135deg,var(--gold),var(--orange))', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <Car size={24} color="#05050e"/>
           </div>
         </div>
       </div>
@@ -187,7 +187,7 @@ export default function Dashboard() {
 
         {!loading && recent.length === 0 && (
           <div style={{ textAlign:'center', padding:'2rem 1rem', color:'var(--tm)' }}>
-            <div style={{ fontSize:'2.5rem', marginBottom:'.75rem' }}>🚖</div>
+            <div style={{ width:52,height:52,borderRadius:14,background:'rgba(245,166,35,.08)',border:'1px solid var(--b1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto .85rem' }}><Car size={22} color="var(--gold)"/></div>
             <div style={{ fontWeight:600, marginBottom:'.4rem' }}>No trips yet</div>
             <p style={{ fontSize:'.83rem', lineHeight:1.6 }}>Book your first cab to IIT Hyderabad</p>
             <button className="btn btn-primary btn-sm" style={{ marginTop:'1rem' }} onClick={()=>navigate('/book')}>
@@ -199,7 +199,7 @@ export default function Dashboard() {
         {!loading && recent.map((b, i) => (
           <div key={b.id} className="fu" style={{ animationDelay:`${i*.05}s`, display:'flex', alignItems:'center', gap:'.85rem', padding:'.75rem 0', borderBottom: i<recent.length-1?'1px solid var(--b1)':'none' }}>
             <div style={{ width:38, height:38, borderRadius:10, background: b.status==='completed'?'rgba(0,200,150,.1)':b.status==='cancelled'?'rgba(255,71,87,.1)':'rgba(245,166,35,.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'1.1rem' }}>
-              {b.status==='completed'?'✅':b.status==='cancelled'?'❌':b.status==='pending_admin'?'⏳':'🚗'}
+              {b.status==='completed'?'✓':b.status==='cancelled'?'✕':b.status==='pending_admin'?'…':'→'}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontWeight:600, fontSize:'.88rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>

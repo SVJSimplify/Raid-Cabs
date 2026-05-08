@@ -33,7 +33,7 @@ export default function OpsLogin() {
     return (
       <div style={{ minHeight:'100vh', background:'#03030a', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Nunito',sans-serif", padding:'2rem' }}>
         <div style={{ maxWidth:360, textAlign:'center' }}>
-          <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>🔒</div>
+          <div style={{ width:52,height:52,background:"rgba(255,179,71,.1)",border:"1px solid rgba(255,179,71,.2)",borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem" }}><Lock size={24} color="#ffb347"/></div>
           <h2 style={{ color:'#ede8d8', fontFamily:"'Playfair Display',serif", fontSize:'1.4rem', marginBottom:'.75rem' }}>Access Denied</h2>
           <p style={{ color:'#9890c2', fontSize:'.9rem', lineHeight:1.65, marginBottom:'1.5rem' }}>This account does not have admin privileges.</p>
           <button onClick={() => signOut()}
@@ -87,8 +87,8 @@ export default function OpsLogin() {
             Full control over the Raid Cabs platform.
           </p>
 
-          {[['🚗','Driver Approval & Management'],['💳','Deposit Approvals'],['📊','Revenue Overview'],['🎯','Booking Control'],['👥','User Administration'],['⚡','Live Realtime Updates']].map(([em,l]) => (
-            <div key={l} className="feat"><em>{em}</em> {l}</div>
+          {[['Car','Driver Approval & Management'],['CreditCard','Deposit Approvals'],['BarChart2','Revenue Overview'],['Layers','Booking Control'],['Users','User Administration'],['Zap','Live Realtime Updates']].map(([,l]) => (
+            <div key={l} className="feat">{l}</div>
           ))}
         </div>
       </div>

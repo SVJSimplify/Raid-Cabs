@@ -93,7 +93,7 @@ export default function Deposit() {
       <div className="mw960">
         <button className="btn btn-ghost btn-sm mb2" onClick={()=>navigate('/dashboard')}><ArrowLeft size={15}/> Back</button>
         <div className="mb3">
-          <h1 className="h1">💰 Deposit for Concession</h1>
+          <h1 className="h1">Deposit for Concession</h1>
           <p className="sub">Deposit ₹5,000 or more to unlock ride discounts. The more you deposit, the bigger your discount.</p>
         </div>
 
@@ -121,7 +121,7 @@ export default function Deposit() {
               <div className="fg mb2">
                 <label className="label">Custom Amount (₹)</label>
                 <input className="input" type="number" min={1000} step={500} value={amount} onChange={e=>setAmount(Math.max(0,Number(e.target.value)))}/>
-                {amount>0 && amount<5000 && <p className="err">⚠ Minimum deposit for discount is ₹5,000</p>}
+                {amount>0 && amount<5000 && <p className="err">Minimum deposit for discount is ₹5,000</p>}
               </div>
 
               {bestTier && (
@@ -183,7 +183,7 @@ export default function Deposit() {
           {/* Right — QR + form */}
           <div>
             <div className="card fu d1">
-              <h3 className="h3 mb1">📱 Scan & Pay</h3>
+              <h3 className="h3 mb1">Scan & Pay</h3>
               <p className="sub mb3">Scan with any UPI app to pay ₹{amount.toLocaleString()}</p>
 
               {/* QR Code */}
@@ -213,7 +213,7 @@ export default function Deposit() {
                 </div>
 
                 <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={saving||amount<5000}>
-                  {saving ? <span className="spinner"/> : '✦ Confirm Deposit'}
+                  {saving ? <span className="spinner"/> : 'Confirm Deposit'}
                 </button>
               </form>
 

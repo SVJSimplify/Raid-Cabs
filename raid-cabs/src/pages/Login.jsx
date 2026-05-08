@@ -162,7 +162,7 @@ export default function Login() {
     setLoading(true)
     const { error } = await signInWithEmailOtp(email)
     if (error) toast.error(error.message || 'Could not send code')
-    else { toast.success(`Code sent to ${email} ✉️`); setEmailStep('verify'); startCd(setCooldown, 60); setTimeout(() => emailRefs.current[0]?.focus(), 100) }
+    else { toast.success(`Code sent to ${email}`); setEmailStep('verify'); startCd(setCooldown, 60); setTimeout(() => emailRefs.current[0]?.focus(), 100) }
     setLoading(false)
   }
 
@@ -173,7 +173,7 @@ export default function Login() {
     setLoading(true)
     const { error } = await verifyEmailOtp(email, code)
     if (error) { toast.error('Invalid code'); setEmailOtp(Array(OTP_LEN).fill('')); emailRefs.current[0]?.focus() }
-    else { toast.success('Signed in! 🎉'); navigate('/dashboard') }
+    else { toast.success('Signed in!'); navigate('/dashboard') }
     setLoading(false)
   }
 
@@ -186,7 +186,7 @@ export default function Login() {
     setSmsStep('otp')
     startCd(setSmsCool, 60)
     setTimeout(() => smsRefs.current[0]?.focus(), 100)
-    toast.success(`OTP sent to +91${phone.replace(/\D/g,'').slice(-10)} 📱`)
+    toast.success(`OTP sent to +91${phone.replace(/\D/g,'').slice(-10)}`)
     setLoading(false)
   }
 
@@ -206,7 +206,7 @@ export default function Login() {
     // Try sign in first (existing user)
     const { error: signinErr } = await signIn({ email: fakeEmail, password: fakePw })
     if (!signinErr) {
-      toast.success('Welcome back! 🎉')
+      toast.success('Welcome back!')
       navigate('/dashboard')
       setLoading(false)
       return
@@ -235,7 +235,7 @@ export default function Login() {
       return
     }
 
-    toast.success('Account created! 🎉')
+    toast.success('Account created!')
     navigate('/dashboard')
     setLoading(false)
   }
@@ -253,7 +253,7 @@ export default function Login() {
         if (!secA.trim()) throw new Error('Answer your security question')
         const { error } = await signUpWithPhone({ phone, password, fullName:name, securityQuestion:secQ, securityAnswer:secA })
         if (error) throw error
-        toast.success('Account created! 🎉'); navigate('/dashboard')
+        toast.success('Account created!'); navigate('/dashboard')
       }
     } catch (err) { toast.error(err.message) }
     setLoading(false)
@@ -273,7 +273,7 @@ export default function Login() {
         const { data, error } = await signUp({ email, password, fullName:name, securityQuestion:secQ, securityAnswer:secA })
         if (error) throw error
         if (data?.user?.identities?.length === 0) throw new Error('Email already registered.')
-        toast.success('Account created! 🎉'); navigate('/dashboard')
+        toast.success('Account created!'); navigate('/dashboard')
       }
     } catch (err) { toast.error(err.message) }
     setLoading(false)
@@ -285,7 +285,7 @@ export default function Login() {
     if (forgotId.includes('@')) {
       const { error } = await sendPasswordReset(forgotId)
       if (error) toast.error(error.message)
-      else { toast.success('Reset link sent ✉️'); setForgotStep('done') }
+      else { toast.success('Reset link sent'); setForgotStep('done') }
       setLoading(false); return
     }
     const digits = forgotId.replace(/\D/g, '').slice(-10)
@@ -330,7 +330,7 @@ export default function Login() {
         </h1>
         <p style={{ marginTop:'1.1rem', color:'var(--ts)', textAlign:'center', maxWidth:310, fontSize:'.95rem', lineHeight:1.65 }}>Premium campus cab service for IIT Hyderabad.</p>
         <div style={{ display:'flex', flexWrap:'wrap', gap:'.6rem', marginTop:'2rem', justifyContent:'center' }}>
-          {['📱 SMS OTP Login','✉️ Email OTP','🔑 Password','🆔 Ride Code','📍 Live Tracking','🆘 SOS Safety'].map(p=>(
+          {['SMS OTP Login','Email OTP','Password Auth','Ride Code','Live Tracking','SOS Safety'].map(p=>(
             <span key={p} style={{ background:'rgba(255,179,71,.07)', border:'1px solid var(--b1)', borderRadius:99, padding:'.38rem .9rem', fontSize:'.78rem', color:'var(--ts)' }}>{p}</span>
           ))}
         </div>
@@ -349,23 +349,20 @@ export default function Login() {
               </div>
 
               {/* Google */}
-              <div style={{ position:'relative', marginBottom:'1rem' }}>
-                <button className="google-btn" disabled style={{ opacity:.45, cursor:'not-allowed' }}>
+              <button className="google-btn" onClick={handleGoogle} disabled={loading}>
                   <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.32-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.68 28.18A13.9 13.9 0 0 1 10.8 24c0-1.45.25-2.86.68-4.18v-5.7H4.34A23.93 23.93 0 0 0 0 24c0 3.86.92 7.5 2.56 10.72l7.12-5.7-.02-.01z"/><path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.34 5.7C13.42 14.62 18.27 10.75 24 10.75z"/></svg>
-                  Continue with Google
+                  {loading ? <span className="spinner"/> : 'Continue with Google'}
                 </button>
-                <span style={{ position:'absolute', top:'50%', right:'.85rem', transform:'translateY(-50%)', fontSize:'.68rem', fontWeight:700, background:'rgba(245,166,35,.12)', color:'var(--gold)', border:'1px solid rgba(245,166,35,.25)', borderRadius:99, padding:'2px 8px', pointerEvents:'none' }}>Coming Soon</span>
-              </div>
 
               <div className="divider mb3">or</div>
 
               {/* SMS OTP */}
               {FIREBASE_OK && (
                 <button className="choice" onClick={() => setMode('sms')} style={{ borderColor:'rgba(34,197,94,.2)', background:'rgba(34,197,94,.03)' }}>
-                  <div className="ci" style={{ background:'rgba(34,197,94,.12)' }}>📱</div>
+                  <div className="ci" style={{ background:'rgba(34,197,94,.12)' }}><MessageSquare size={18} color="#22c55e"/></div>
                   <div style={{ flex:1, textAlign:'left' }}>
                     <div style={{ fontWeight:700, color:'var(--tp)', fontSize:'.9rem' }}>
-                      Phone SMS OTP <span className="sms-badge">✓ Real SMS</span>
+                      Phone SMS OTP <span className="sms-badge">Live SMS</span>
                     </div>
                     <div style={{ fontSize:'.74rem', color:'var(--tm)', marginTop:1 }}>6-digit OTP sent to your mobile number</div>
                   </div>
@@ -374,7 +371,7 @@ export default function Login() {
               )}
 
               <button className="choice" onClick={() => setMode('phone')} style={{ borderColor: FIREBASE_OK ? 'var(--b1)' : 'rgba(0,200,150,.2)', background: FIREBASE_OK ? 'transparent' : 'rgba(0,200,150,.03)' }}>
-                <div className="ci" style={{ background:'rgba(255,179,71,.12)' }}>🔑</div>
+                <div className="ci" style={{ background:'rgba(255,179,71,.12)' }}><Lock size={18} color="var(--gold)"/></div>
                 <div style={{ flex:1, textAlign:'left' }}>
                   <div style={{ fontWeight:700, color:'var(--tp)', fontSize:'.9rem' }}>Phone + Password {!FIREBASE_OK && <span className="sms-badge" style={{ background:'rgba(0,200,150,.1)', color:'var(--green)', borderColor:'rgba(0,200,150,.2)' }}>No SMS needed</span>}</div>
                   <div style={{ fontSize:'.74rem', color:'var(--tm)', marginTop:1 }}>Use your mobile number and a password</div>
@@ -383,7 +380,7 @@ export default function Login() {
               </button>
 
               <button className="choice" onClick={() => setMode('email-otp')}>
-                <div className="ci" style={{ background:'rgba(52,152,219,.12)' }}>✉️</div>
+                <div className="ci" style={{ background:'rgba(52,152,219,.12)' }}><Mail size={18} color="#3498db"/></div>
                 <div style={{ flex:1, textAlign:'left' }}>
                   <div style={{ fontWeight:700, color:'var(--tp)', fontSize:'.9rem' }}>Email OTP</div>
                   <div style={{ fontSize:'.74rem', color:'var(--tm)', marginTop:1 }}>6-digit code to your email, no password</div>
@@ -392,7 +389,7 @@ export default function Login() {
               </button>
 
               <button className="choice" onClick={() => setMode('email-pw')}>
-                <div className="ci" style={{ background:'rgba(155,89,182,.12)' }}>📧</div>
+                <div className="ci" style={{ background:'rgba(155,89,182,.12)' }}><KeyRound size={18} color="#8b5cf6"/></div>
                 <div style={{ flex:1, textAlign:'left' }}>
                   <div style={{ fontWeight:700, color:'var(--tp)', fontSize:'.9rem' }}>Email + Password</div>
                   <div style={{ fontSize:'.74rem', color:'var(--tm)', marginTop:1 }}>Traditional login with email and password</div>
@@ -441,11 +438,11 @@ export default function Login() {
               {smsStep === 'otp' && (
                 <form onSubmit={verifySmsOtpFn}>
                   <div style={{ textAlign:'center', padding:'.65rem', background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.2)', borderRadius:'var(--rs)', marginBottom:'.5rem', fontWeight:700, color:'var(--green)' }}>
-                    📱 +91{phone.replace(/\D/g,'').slice(-10)}
+                    +91{phone.replace(/\D/g,'').slice(-10)}
                   </div>
                   {renderOtp(smsOtp, smsRefs, smsH)}
                   <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading || smsOtp.join('').length !== 6}>
-                    {loading ? <span className="spinner"/> : '✦ Verify & Sign In'}
+                    {loading ? <span className="spinner"/> : 'Verify & Sign In'}
                   </button>
                   <div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setSmsStep('input'); setSmsOtp(Array(6).fill('')) }}><ChevronLeft size={13}/> Change</button>
@@ -470,7 +467,7 @@ export default function Login() {
                 {renderPwField()}
                 {subMode==='register' && <SecurityFields/>}
                 {subMode==='login' && <button type="button" onClick={() => { setForgotId(phone); setMode('forgot'); setForgotStep('input') }} style={{ alignSelf:'flex-end', background:'transparent', border:'none', color:'var(--gold)', fontSize:'.78rem', cursor:'pointer', fontFamily:'var(--fb)', marginTop:'-.5rem' }}>Forgot password?</button>}
-                <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:subMode==='login'?'✦ Sign In':'✦ Create Account'}</button>
+                <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:subMode==='login'?'Sign In':'Create Account'}</button>
               </form>
             </>
           )}
@@ -483,7 +480,7 @@ export default function Login() {
                 <div><div style={{ fontFamily:'var(--fd)', fontSize:'1.35rem', fontWeight:700 }}>{emailOtpStep==='input'?'Your Email':'Check Email'}</div><div style={{ color:'var(--ts)', fontSize:'.82rem', marginTop:2 }}>{emailOtpStep==='verify'?`Code sent to ${email}`:"We'll email you a 6-digit code"}</div></div>
               </div>
               {emailOtpStep==='input' && <form onSubmit={e=>{e.preventDefault();sendEmailOtp()}}><div className="fg mb3"><label className="label">Email Address</label><div className="input-wrap"><Mail size={15} className="ico"/><input className="input" type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} required autoFocus name="email" autoComplete="email"/></div></div><button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:<><ArrowRight size={16}/> Send Code</>}</button></form>}
-              {emailOtpStep==='verify' && <form onSubmit={verifyEmailOtpFn}><div style={{ textAlign:'center', padding:'.65rem', background:'rgba(52,152,219,.08)', border:'1px solid rgba(52,152,219,.2)', borderRadius:'var(--rs)', marginBottom:'.5rem', fontWeight:700, color:'#3498db' }}>✉️ {email}</div>{renderOtp(emailOtp, emailRefs, emailH)}<button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading||emailOtp.join('').length!==OTP_LEN}>{loading?<span className="spinner"/>:'✦ Verify & Sign In'}</button><div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}><button type="button" className="btn btn-ghost btn-sm" onClick={()=>{setEmailStep('input');setEmailOtp(Array(OTP_LEN).fill(''))}}><ChevronLeft size={13}/> Change</button><button type="button" className="btn btn-ghost btn-sm" onClick={sendEmailOtp} disabled={cooldown>0||loading}><RefreshCw size={13}/> {cooldown>0?`Resend in ${cooldown}s`:'Resend'}</button></div></form>}
+              {emailOtpStep==='verify' && <form onSubmit={verifyEmailOtpFn}><div style={{ textAlign:'center', padding:'.65rem', background:'rgba(52,152,219,.08)', border:'1px solid rgba(52,152,219,.2)', borderRadius:'var(--rs)', marginBottom:'.5rem', fontWeight:700, color:'#3498db' }}>Mail – {email}</div>{renderOtp(emailOtp, emailRefs, emailH)}<button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading||emailOtp.join('').length!==OTP_LEN}>{loading?<span className="spinner"/>:'Verify & Sign In'}</button><div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}><button type="button" className="btn btn-ghost btn-sm" onClick={()=>{setEmailStep('input');setEmailOtp(Array(OTP_LEN).fill(''))}}><ChevronLeft size={13}/> Change</button><button type="button" className="btn btn-ghost btn-sm" onClick={sendEmailOtp} disabled={cooldown>0||loading}><RefreshCw size={13}/> {cooldown>0?`Resend in ${cooldown}s`:'Resend'}</button></div></form>}
             </>
           )}
 
@@ -501,7 +498,7 @@ export default function Login() {
                 {renderPwField()}
                 {subMode==='register' && <SecurityFields/>}
                 {subMode==='login' && <button type="button" onClick={() => { setForgotId(email); setMode('forgot'); setForgotStep('input') }} style={{ alignSelf:'flex-end', background:'transparent', border:'none', color:'var(--gold)', fontSize:'.78rem', cursor:'pointer', fontFamily:'var(--fb)', marginTop:'-.5rem' }}>Forgot password?</button>}
-                <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:subMode==='login'?'✦ Sign In':'✦ Create Account'}</button>
+                <button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:subMode==='login'?'Sign In':'Create Account'}</button>
               </form>
             </>
           )}
@@ -515,7 +512,7 @@ export default function Login() {
               </div>
               {forgotStep==='input' && <form onSubmit={handleForgot} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}><div className="fg"><label className="label">Email or Phone Number</label><div className="input-wrap"><KeyRound size={15} className="ico"/><input className="input" type="text" placeholder="you@email.com or 9876543210" value={forgotId} onChange={e=>setForgotId(e.target.value)} required autoFocus/></div></div><div className="info-box" style={{ fontSize:'.8rem' }}><HelpCircle size={13} style={{ flexShrink:0 }}/> Email → reset link. Phone → security question.</div><button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:<><ArrowRight size={16}/> Continue</>}</button></form>}
               {forgotStep==='security' && <form onSubmit={handleForgotVerify} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}><div className="card" style={{ padding:'1rem', background:'rgba(255,179,71,.05)', borderColor:'rgba(255,179,71,.2)' }}><div style={{ fontSize:'.73rem', color:'var(--ts)', marginBottom:'.4rem' }}>Your security question:</div><div style={{ fontWeight:700, fontSize:'.9rem' }}>{forgotSecQ}</div></div><div className="fg"><label className="label">Your Answer</label><input className="input" type="text" placeholder="Your answer" value={forgotSecA} onChange={e=>setForgotSecA(e.target.value)} required autoFocus/><p className="hint">Case-insensitive</p></div><button type="submit" className="btn btn-primary btn-blk btn-lg" disabled={loading}>{loading?<span className="spinner"/>:'Verify & Continue'}</button></form>}
-              {forgotStep==='done' && <div style={{ textAlign:'center', padding:'1rem 0' }}><div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✅</div><div style={{ fontFamily:'var(--fd)', fontWeight:700, fontSize:'1.1rem', marginBottom:'.5rem' }}>Done!</div><p style={{ color:'var(--ts)', fontSize:'.85rem', lineHeight:1.65 }}>{forgotId.includes('@')?'Check your email for a password reset link.':'Identity verified. Use Email OTP to sign in.'}</p><button className="btn btn-primary btn-sm" style={{ marginTop:'1.25rem' }} onClick={reset}>Back to Sign In</button></div>}
+              {forgotStep==='done' && <div style={{ textAlign:'center', padding:'1rem 0' }}><div style={{ width:60,height:60,borderRadius:"50%",background:"rgba(34,197,94,.12)",border:"1px solid rgba(34,197,94,.25)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><div style={{ fontFamily:'var(--fd)', fontWeight:700, fontSize:'1.1rem', marginBottom:'.5rem' }}>Done!</div><p style={{ color:'var(--ts)', fontSize:'.85rem', lineHeight:1.65 }}>{forgotId.includes('@')?'Check your email for a password reset link.':'Identity verified. Use Email OTP to sign in.'}</p><button className="btn btn-primary btn-sm" style={{ marginTop:'1.25rem' }} onClick={reset}>Back to Sign In</button></div>}
             </>
           )}
 

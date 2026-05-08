@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Phone, Download, Star } from 'lucide-react'
+import { ArrowLeft, Phone, Download, Star, Car } from 'lucide-react'
 import Receipt from '../components/Receipt'
 import RatingModal from '../components/RatingModal'
 
 const SC = { confirmed:'var(--green)', in_progress:'var(--gold)', completed:'var(--blue)', cancelled:'var(--red)', pending:'var(--tm)' }
-const SE = { confirmed:'🟢', in_progress:'🚗', completed:'✅', cancelled:'❌', pending:'⏳' }
+const SE = { confirmed:'Active', in_progress:'In Progress', completed:'Done', cancelled:'Cancelled', pending:'Pending' }
 
 export default function History() {
   const { user } = useAuth()
@@ -47,7 +47,7 @@ export default function History() {
         <button className="btn btn-ghost btn-sm mb2" onClick={()=>navigate('/dashboard')}><ArrowLeft size={15}/> Back</button>
 
         <div className="mb3">
-          <h1 className="h1">🗂 My Trips</h1>
+          <h1 className="h1">My Trips</h1>
           <p style={{ color:'var(--ts)',marginTop:'.3rem' }}>Your complete ride history</p>
         </div>
 
@@ -85,7 +85,7 @@ export default function History() {
 
             {!loading&&filtered.length===0&&(
               <div style={{ textAlign:'center',padding:'3.5rem 2rem',color:'var(--tm)' }}>
-                <div style={{ fontSize:'3rem',marginBottom:'1rem' }}>🚖</div>
+                <div style={{ width:52,height:52,borderRadius:14,background:"rgba(245,166,35,.08)",border:"1px solid var(--b1)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem" }}><Car size={22} color="var(--gold)"/></div>
                 <p>{filter==='all'?'No trips yet — book your first cab!':` No ${filter.replace('_',' ')} trips.`}</p>
                 {filter==='all'&&<button className="btn btn-primary mt3" onClick={()=>navigate('/book')}>Book Now</button>}
               </div>
@@ -93,7 +93,7 @@ export default function History() {
 
             {!loading&&filtered.map(b=>(
               <div key={b.id} className={`tr-row ${sel?.id===b.id?'sel':''}`} onClick={()=>setSel(s=>s?.id===b.id?null:b)}>
-                <div style={{ fontSize:'1.3rem',flexShrink:0 }}>{SE[b.status]||'📋'}</div>
+                <div style={{ fontSize:'.65rem',fontWeight:700,padding:'3px 8px',borderRadius:99,background:'rgba(255,255,255,.05)',border:'1px solid var(--b1)',color:'var(--ts)',flexShrink:0,whiteSpace:'nowrap' }}>{SE[b.status]||'—'}</div>
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ fontWeight:700,fontSize:'.88rem',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{b.pickup_address}</div>
                   <div style={{ fontSize:'.75rem',color:'var(--tm)',marginTop:1 }}>

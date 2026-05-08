@@ -6,24 +6,7 @@ import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const KEY         = import.meta.env.VITE_MAPPLS_KEY || ''
-const GOOGLE_KEY  = import.meta.env.VITE_GOOGLE_MAPS_KEY || ''
-
-// ── Google Maps lazy loader (script tag — no npm package needed) ───
-let _googlePromise = null
-function loadGoogleMaps() {
-  if (window.google?.maps) return Promise.resolve()
-  if (_googlePromise) return _googlePromise
-  _googlePromise = new Promise((resolve, reject) => {
-    const s = document.createElement('script')
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_KEY}&libraries=marker&loading=async`
-    s.async = true
-    s.onload  = resolve
-    s.onerror = reject
-    document.head.appendChild(s)
-  })
-  return _googlePromise
-}
+const KEY = import.meta.env.VITE_MAPPLS_KEY || ''
 
 const TILE_URL = KEY
   ? `https://apis.mappls.com/advancedmaps/v1/${KEY}/tiles/default/{z}/{x}/{y}.png`
@@ -92,7 +75,7 @@ function destIcon(label) {
   return L.divIcon({
     className: '',
     html: `<div style="display:flex;flex-direction:column;align-items:center;">
-      <div style="width:38px;height:38px;border-radius:50%;background:#f5a623;border:2.5px solid rgba(255,255,255,.95);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 14px rgba(245,166,35,.5);">🏁</div>
+      <div style="width:38px;height:38px;border-radius:50%;background:#f5a623;border:2.5px solid rgba(255,255,255,.95);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 14px rgba(245,166,35,.5);"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0a0a0f" stroke-width="2.5"><line x1="4" y1="4" x2="4" y2="20"/><polyline points="4,4 16,2 16,11 4,13"/></svg></div>
       <div style="background:#f5a623;color:#0a0a0f;font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;margin-top:4px;white-space:nowrap;">${short}</div>
     </div>`,
     iconSize:   [60, 55],
@@ -125,46 +108,12 @@ export default function LiveMap({
   const prevDrv   = useRef(null)
   const zoomTimer = useRef(null)
 
-  // useGoogleMaps flag — if GOOGLE_KEY set, use Google Maps
-  const useGoogle = !!GOOGLE_KEY
-
   // Init map once
   useEffect(() => {
     if (!divRef.current || mapRef.current) return
     const center = userPos || driverPos || dropPos || { lat:17.5934, lng:78.127 }
 
-    if (useGoogle) {
-      // Google Maps init (via dynamic script tag)
-      loadGoogleMaps().then(() => {
-        if (!divRef.current || mapRef.current) return
-        const gmap = new window.google.maps.Map(divRef.current, {
-          center: { lat: center.lat, lng: center.lng },
-          zoom: 13,
-          disableDefaultUI: true,
-          zoomControl: true,
-          gestureHandling: 'cooperative',
-          mapId: 'raidcabs-dark',
-          styles: [
-            { elementType:'geometry', stylers:[{ color:'#0a0a0f' }] },
-            { elementType:'labels.text.fill', stylers:[{ color:'#8b87b0' }] },
-            { elementType:'labels.text.stroke', stylers:[{ color:'#0a0a0f' }] },
-            { featureType:'road', elementType:'geometry', stylers:[{ color:'#1e1e30' }] },
-            { featureType:'road.highway', elementType:'geometry', stylers:[{ color:'#2a2a40' }] },
-            { featureType:'road.highway', elementType:'labels.text.fill', stylers:[{ color:'#f5a623' }] },
-            { featureType:'poi', stylers:[{ visibility:'off' }] },
-            { featureType:'transit', stylers:[{ visibility:'off' }] },
-            { featureType:'water', elementType:'geometry', stylers:[{ color:'#050510' }] },
-          ],
-        })
-        mapRef.current = { _gmap: gmap, _type: 'google', _lines: [], _markers: {} }
-      }).catch(err => console.warn('[LiveMap] Google Maps load failed:', err))
-      return () => {
-        if (zoomTimer.current) clearTimeout(zoomTimer.current)
-        mapRef.current = null; marksRef.current = {}; linesRef.current = []; prevDrv.current = null
-      }
-    }
-
-    // Leaflet fallback
+    // Leaflet + OpenStreetMap
     const map = L.map(divRef.current, { center:[center.lat,center.lng], zoom:13, zoomControl:true, attributionControl:false, zoomSnap:0.5, zoomDelta:0.5, wheelPxPerZoomLevel:120 })
     L.tileLayer(TILE_URL, { maxZoom:18, subdomains:'abcd', attribution: KEY ? '© Mappls © OSM' : '© CARTO' }).addTo(map)
     L.control.attribution({ prefix:false }).addTo(map)
@@ -185,71 +134,13 @@ export default function LiveMap({
     const map = mapRef.current
     if (!map) return
 
-    // ── Google Maps rendering ───────────────────────────────────────
-    if (map._type === 'google') {
-      const gmap = map._gmap
-
-      const makeGMarker = (latlng, label, color) => {
-        return new window.google.maps.Marker({
-          map: gmap,
-          position: latlng,
-          title: label,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: color,
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2.5,
-          }
-        })
-      }
-
-      if (userPos) {
-        if (marksRef.current.user) marksRef.current.user.setPosition({lat:userPos.lat,lng:userPos.lng})
-        else marksRef.current.user = makeGMarker({lat:userPos.lat,lng:userPos.lng}, 'Your Pickup', '#3b82f6')
-      }
-      if (driverPos) {
-        prevDrv.current = driverPos
-        if (marksRef.current.driver) marksRef.current.driver.setPosition({lat:driverPos.lat,lng:driverPos.lng})
-        else marksRef.current.driver = makeGMarker({lat:driverPos.lat,lng:driverPos.lng}, 'Driver', '#22c55e')
-      }
-      if (dropPos) {
-        if (marksRef.current.drop) marksRef.current.drop.setPosition({lat:dropPos.lat,lng:dropPos.lng})
-        else marksRef.current.drop = makeGMarker({lat:dropPos.lat,lng:dropPos.lng}, dropPos.label||'Destination', '#f5a623')
-      }
-
-      // Lines
-      map._lines.forEach(l => l.setMap(null)); map._lines = []
-      if (driverPos && userPos && !isInRide) {
-        map._lines.push(new window.google.maps.Polyline({ map:gmap, path:[{lat:driverPos.lat,lng:driverPos.lng},{lat:userPos.lat,lng:userPos.lng}], strokeColor:'#3b82f6', strokeWeight:4, strokeOpacity:.7, icons:[{icon:{path:'M 0,-1 0,1',strokeOpacity:.7,scale:4},offset:'0',repeat:'12px'}] }))
-      }
-      if (userPos && dropPos) {
-        const path = routeGeo?.coordinates ? routeGeo.coordinates.map(([lng,lat])=>({lat,lng})) : [{lat:userPos.lat,lng:userPos.lng},{lat:dropPos.lat,lng:dropPos.lng}]
-        map._lines.push(new window.google.maps.Polyline({ map:gmap, path, strokeColor:'rgba(245,166,35,.3)', strokeWeight:12, strokeOpacity:1 }))
-        map._lines.push(new window.google.maps.Polyline({ map:gmap, path, strokeColor:'#f5a623', strokeWeight:5, strokeOpacity:.9 }))
-      }
-
-      // Fit bounds
-      const pts = []
-      if (userPos)   pts.push({lat:userPos.lat,lng:userPos.lng})
-      if (driverPos) pts.push({lat:driverPos.lat,lng:driverPos.lng})
-      if (dropPos)   pts.push({lat:dropPos.lat,lng:dropPos.lng})
-      if (pts.length > 1) {
-        const bounds = new window.google.maps.LatLngBounds()
-        pts.forEach(p => bounds.extend(p))
-        gmap.fitBounds(bounds, 60)
-      } else if (pts.length === 1) { gmap.panTo(pts[0]); gmap.setZoom(14) }
-      return
-    }
-
     // ── Leaflet rendering ───────────────────────────────────────────
 
     // Pickup marker
     if (userPos) {
       if (marksRef.current.user) smoothMove(marksRef.current.user, userPos.lat, userPos.lng)
       else marksRef.current.user = L.marker([userPos.lat,userPos.lng], { icon:pickupIcon(), zIndexOffset:100 })
-        .addTo(map).bindPopup(adminMode ? '🧑 Passenger' : 'Your Pickup')
+        .addTo(map).bindPopup(adminMode ? 'Passenger' : 'Your Pickup')
     }
 
     // Driver marker
@@ -261,7 +152,7 @@ export default function LiveMap({
         setTimeout(() => { if (marksRef.current.driver) marksRef.current.driver.setIcon(carIcon(deg)) }, 50)
       } else {
         marksRef.current.driver = L.marker([driverPos.lat,driverPos.lng], { icon:carIcon(deg), zIndexOffset:1000 })
-          .addTo(map).bindPopup(adminMode ? '🚗 Driver (Live)' : 'Your Driver')
+          .addTo(map).bindPopup(adminMode ? 'Driver (Live)' : 'Your Driver')
       }
     }
 
@@ -314,7 +205,7 @@ export default function LiveMap({
 
   if (!userPos && !driverPos && !dropPos) return (
     <div style={{ width:'100%', height, background:'#111118', borderRadius:14, border:'1px solid rgba(255,255,255,.07)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem' }}>
-      <div style={{ fontSize:'2.5rem' }}>🗺️</div>
+      <div style={{ width:52,height:52,borderRadius:14,background:"rgba(139,135,176,.06)",border:"1px solid rgba(255,255,255,.06)",display:"flex",alignItems:"center",justifyContent:"center" }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8b87b0" strokeWidth="1.5"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></div>
       <p style={{ color:'#8b87b0', fontSize:'.85rem', textAlign:'center', maxWidth:230, lineHeight:1.6 }}>Enter a pickup location to see the map</p>
     </div>
   )

@@ -72,7 +72,7 @@ function PendingRidesPanel({ drivers, load }) {
   return (
     <div className="ops-card">
       <div style={{fontWeight:700,fontSize:'1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-        📋 Pending & Active Ride Requests
+        Pending & Active Ride Requests
         <span style={{background:'rgba(245,166,35,.12)',color:'var(--gold)',border:'1px solid rgba(245,166,35,.22)',borderRadius:99,padding:'2px 8px',fontSize:'.72rem',fontWeight:700}}>
           {rides.filter(r=>r.status==='pending_admin').length} pending
         </span>
@@ -104,22 +104,22 @@ function PendingRidesPanel({ drivers, load }) {
                   </span>
                 </div>
                 <div style={{fontSize:'.82rem',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.25rem .5rem',marginBottom:'.5rem'}}>
-                  <span style={{color:'#504c74'}}>📍 {b.pickup_address?.split(',')[0]||'—'}</span>
-                  <span style={{color:'#504c74'}}>📏 {b.distance_km} km</span>
-                  <span style={{color:'#ffb347',fontWeight:700}}>💰 ₹{b.final_fare}{b.discount_amount>0?` (−₹${b.discount_amount})`:''}</span>
-                  <span style={{color:'#504c74'}}>🕐 {b.scheduled_at?new Date(b.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—'}</span>
+                  <span style={{color:"#504c74"}}> {b.pickup_address?.split(',')[0]||'—'}</span>
+                  <span style={{color:"#504c74"}}> {b.distance_km} km</span>
+                  <span style={{color:"#ffb347",fontWeight:700}}>₹ ₹{b.final_fare}{b.discount_amount>0?` (−₹${b.discount_amount})`:''}</span>
+                  <span style={{color:"#504c74"}}> {b.scheduled_at?new Date(b.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—'}</span>
                 </div>
                 <div style={{fontSize:'.75rem',color:'#504c74',display:'flex',flexWrap:'wrap',gap:'.35rem'}}>
-                  <span>💳 Balance: ₹{Number(user?.balance||0).toLocaleString()}</span>
-                  <span>🆔 Code: <strong style={{color:'#ede8d8'}}>{user?.ride_code||'—'}</strong></span>
-                  {user?.emergency_contact_name&&<span>🆘 {user.emergency_contact_name} · {user.emergency_contact_phone}</span>}
+                  <span>Balance: ₹{Number(user?.balance||0).toLocaleString()}</span>
+                  <span>Code: <strong style={{color:'#ede8d8'}}>{user?.ride_code||'—'}</strong></span>
+                  {user?.emergency_contact_name&&<span>SOS: {user.emergency_contact_name} · {user.emergency_contact_phone}</span>}
                 </div>
-                {b.admin_notes&&<div style={{marginTop:'.4rem',fontSize:'.78rem',color:'#ffb347'}}>📝 {b.admin_notes}</div>}
+                {b.admin_notes&&<div style={{marginTop:'.4rem',fontSize:'.78rem',color:'#ffb347'}}>Note: {b.admin_notes}</div>}
                 {b.drivers && (
                   <div style={{marginTop:'.6rem',display:'flex',alignItems:'center',gap:'.6rem',background:'rgba(34,197,94,.06)',border:'1px solid rgba(34,197,94,.18)',borderRadius:8,padding:'.5rem .75rem'}}>
                     <div style={{fontSize:'.8rem',fontWeight:700,color:'#22c55e'}}>{b.drivers.name}</div>
                     <div style={{fontSize:'.72rem',color:'#504c74'}}>{b.drivers.vehicle_model} · {b.drivers.vehicle_number}</div>
-                    <div style={{fontSize:'.75rem',color:'#ffb347',marginLeft:'auto'}}>⭐ {Number(b.drivers.rating||5).toFixed(1)}</div>
+                    <div style={{fontSize:".75rem",color:"#ffb347",marginLeft:"auto"}}> {Number(b.drivers.rating||5).toFixed(1)}</div>
                   </div>
                 )}
               </div>
@@ -127,7 +127,7 @@ function PendingRidesPanel({ drivers, load }) {
                 {b.pickup_lat && (
                   <button onClick={()=>{setMapRide(b);setDrvPos(null)}}
                     style={{background:'rgba(59,130,246,.1)',border:'1px solid rgba(59,130,246,.25)',color:'#60a5fa',borderRadius:6,padding:'4px 10px',fontSize:'.75rem',fontWeight:700,cursor:'pointer',fontFamily:"'Nunito',sans-serif"}}>
-                    🗺 Map
+                    Map
                   </button>
                 )}
                 {isPending && (
@@ -155,7 +155,7 @@ function PendingRidesPanel({ drivers, load }) {
               driverPos={driverPos}
               dropPos={mapRide.drop_lat ? { lat:parseFloat(mapRide.drop_lat), lng:parseFloat(mapRide.drop_lng), label:mapRide.drop_address||'Destination' } : null}
               height={380}
-              liveLabel={driverPos ? '🟢 Driver GPS live' : null}
+              liveLabel={driverPos ? "Driver GPS live" : null}
             />
           </div>
         </div>
@@ -184,7 +184,7 @@ function PendingRidesPanel({ drivers, load }) {
                         <div style={{fontWeight:700,color:'#ede8d8',fontSize:'.9rem'}}>{d.name}</div>
                         <div style={{fontSize:'.75rem',color:'#504c74'}}>{d.vehicle_model} · {d.vehicle_number}</div>
                       </div>
-                      <div style={{fontSize:'.8rem',color:'#ffb347'}}>⭐ {Number(d.rating||5).toFixed(1)}</div>
+                      <div style={{fontSize:".8rem",color:"#ffb347"}}> {Number(d.rating||5).toFixed(1)}</div>
                     </button>
                   ))}
                 </div>
@@ -328,7 +328,7 @@ function SosAlertsPanel() {
   return (
     <div className="ops-card">
       <div style={{fontWeight:700,fontSize:'1rem',marginBottom:'1.25rem',color:'#e74c3c',display:'flex',alignItems:'center',gap:8}}>
-        🆘 SOS Alerts
+        SOS Alerts
       </div>
       {loading && <div style={{color:'#504c74',textAlign:'center',padding:'2rem'}}>Loading…</div>}
       {!loading && alerts.length===0 && <div style={{color:'#504c74',textAlign:'center',padding:'2rem'}}>✅ No SOS alerts</div>}
@@ -339,9 +339,9 @@ function SosAlertsPanel() {
             {!a.resolved && <button className="ops-btn ops-btn-g" onClick={()=>resolve(a.id)}>✓ Resolve</button>}
           </div>
           <div style={{fontSize:'.83rem',display:'flex',flexDirection:'column',gap:3}}>
-            <span>👤 <strong style={{color:'#ede8d8'}}>{a.profiles?.full_name||'Unknown'}</strong> · {a.profiles?.phone||'—'}</span>
-            <span>🚗 <strong style={{color:'#ede8d8'}}>{a.drivers?.name||'—'}</strong> · {a.drivers?.phone||'—'}</span>
-            {a.location_lat && <a href={`https://maps.google.com/?q=${a.location_lat},${a.location_lng}`} target="_blank" rel="noreferrer" style={{color:'#3498db',fontSize:'.8rem'}}>📍 View on Google Maps →</a>}
+            <span> <strong style={{color:'#ede8d8'}}>{a.profiles?.full_name||'Unknown'}</strong> · {a.profiles?.phone||'—'}</span>
+            <span><strong style={{color:'#ede8d8'}}>{a.drivers?.name||'—'}</strong> · {a.drivers?.phone||'—'}</span>
+            {a.location_lat && <a href={`https://maps.google.com/?q=${a.location_lat},${a.location_lng}`} target="_blank" rel="noreferrer" style={{color:'#3498db',fontSize:'.8rem'}}>View on Maps →</a>}
           </div>
         </div>
       ))}
@@ -840,7 +840,7 @@ export default function OpsDashboard() {
                 </div>
               ))}
               <div style={{background:'rgba(245,166,35,.07)',border:'1px solid rgba(245,166,35,.15)',borderRadius:10,padding:'.75rem 1rem',fontSize:'.8rem',color:'#ffb347'}}>
-                ℹ️ Driver will be created immediately. They log in at /driver with their phone and PIN.
+                Driver will be created immediately. They log in at /driver with their phone and PIN.
               </div>
               <button onClick={async()=>{
                 const{name,phone,vehicle_model,vehicle_number,login_pin}=newDriver
@@ -859,7 +859,7 @@ export default function OpsDashboard() {
                 }
                 setShowAddDriver(false);setNewDriver({name:'',phone:'',vehicle_model:'',vehicle_number:'',login_pin:''});load();toast.success('Driver added! ✅')
               }} disabled={addingDriver} style={{background:'linear-gradient(135deg,#f5a623,#ff6b2b)',color:'#0a0a0f',border:'none',borderRadius:12,padding:'.85rem',fontWeight:700,fontSize:'.95rem',cursor:'pointer',fontFamily:"'Nunito',sans-serif",opacity:addingDriver?0.5:1}}>
-                {addingDriver?'Creating…':'✅ Create Driver'}
+                {addingDriver?'Creating…':'Create Driver'}
               </button>
             </div>
           </div>

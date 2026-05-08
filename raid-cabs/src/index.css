@@ -291,12 +291,7 @@ textarea.input { resize: vertical; min-height: 80px; }
 .bn-item svg { width: 22px; height: 22px; }
 
 /* ─── MAPLIBRE OVERRIDES ─────────────────────────────────────────────────── */
-.maplibregl-ctrl-attrib { background: rgba(5,5,14,.75) !important; color: #504c74 !important; font-size: 9px !important; }
-.maplibregl-ctrl-attrib a { color: #504c74 !important; }
-.maplibregl-ctrl button { background: #0e0e20 !important; border: 1px solid rgba(255,179,71,.15) !important; }
-.maplibregl-ctrl-group { background: #0e0e20 !important; border: 1px solid rgba(255,179,71,.15) !important; border-radius: 8px !important; overflow: hidden; }
-.maplibregl-popup-content { background: #13131e !important; color: #f0eefc !important; border: 1px solid rgba(255,179,71,.2) !important; border-radius: 10px !important; font-family: 'Inter', sans-serif !important; font-size: .85rem !important; padding: 8px 12px !important; box-shadow: 0 8px 32px rgba(0,0,0,.5) !important; }
-.maplibregl-popup-tip { display: none !important; }
+/* ─── LEAFLET OVERRIDES ──────────────────────────────────────────────────── */
 
 /* ─── RESPONSIVE ─────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
@@ -339,4 +334,62 @@ textarea.input { resize: vertical; min-height: 80px; }
 }
 @media(max-width:480px) {
   .g2,.g3,.g4 { grid-template-columns: 1fr; }
+}
+
+/* ─── SAAS ANIMATION ENHANCEMENTS ───────────────────────────────────────── */
+
+/* Staggered entrance animations */
+@keyframes slideInLeft  { from { opacity:0; transform:translateX(-20px) } to { opacity:1; transform:translateX(0) } }
+@keyframes slideInRight { from { opacity:0; transform:translateX(20px)  } to { opacity:1; transform:translateX(0) } }
+@keyframes scaleUp      { from { opacity:0; transform:scale(.92) } to { opacity:1; transform:scale(1) } }
+@keyframes glowPulse    { 0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.0)} 50%{box-shadow:0 0 20px 4px rgba(245,166,35,.15)} }
+
+/* Shimmer gradient for skeleton loaders */
+.skel { background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%); background-size: 200% 100%; animation: shim 1.6s infinite; }
+
+/* Smooth card hover lift */
+.card { transition: transform .22s var(--ease), box-shadow .22s var(--ease); }
+.card:hover { transform: translateY(-2px); box-shadow: 0 16px 48px rgba(0,0,0,.5); }
+
+/* Animated stat values */
+.stat-card { position: relative; overflow: hidden; }
+.stat-card::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,.015) 0%,transparent 60%); pointer-events:none; border-radius: inherit; }
+
+/* Micro-interaction: active press */
+.btn:active:not(:disabled) { transform: scale(.97); }
+
+/* Status indicator pulse */
+.dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; flex-shrink:0; }
+
+/* Page transition */
+.main > * { animation: fadeUp .3s var(--ease) both; }
+
+/* Glassmorphism surface */
+.glass { background: rgba(19,19,30,.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--b1); }
+
+/* Input focus glow */
+.input:focus { box-shadow: 0 0 0 2px rgba(245,166,35,.18), 0 0 16px rgba(245,166,35,.08); }
+
+/* Gold gradient text */
+.grad-text { background: linear-gradient(135deg, var(--gold), var(--orange)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+/* Smooth scrolling list */
+.scroll-list { scrollbar-width: thin; scrollbar-color: rgba(245,166,35,.2) transparent; }
+
+/* Interactive row highlight */
+.row-interactive { transition: background .15s; cursor: pointer; border-radius: var(--rs); padding: .6rem .75rem; margin: 0 -.75rem; }
+.row-interactive:hover { background: rgba(255,255,255,.03); }
+
+/* Badge pop-in */
+.badge { animation: scaleIn .2s var(--ease) both; }
+
+/* Gradient border on focus */
+.input-wrap:focus-within { outline: none; }
+.input-wrap:focus-within::after { content:''; position:absolute; inset:-1px; border-radius: calc(var(--rs) + 1px); border: 1px solid rgba(245,166,35,.35); pointer-events:none; }
+.input-wrap { position: relative; }
+
+/* Responsive improvements */
+@media (max-width: 520px) {
+  :root { --page-px: 1rem; --page-py: 1.25rem; }
+  .h1 { font-size: 1.55rem; }
 }

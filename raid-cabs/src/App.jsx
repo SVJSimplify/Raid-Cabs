@@ -70,6 +70,7 @@ export default function App() {
 
               {/* ── Driver Portal ── */}
               <Route path="/driver"         element={<DriverLogin/>}/>
+              <Route path="/driver-signup"  element={<DriverSignup/>}/>
               <Route path="/driver/home"    element={<DriverRoute><DriverHome/></DriverRoute>}/>
               <Route path="/driver/history" element={<DriverRoute><DriverHistory/></DriverRoute>}/>
 

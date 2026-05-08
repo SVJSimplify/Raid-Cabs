@@ -5,6 +5,9 @@
 
 const IIT = { lat: 17.5934, lng: 78.1270 }
 
+// Nominatim viewbox: minLng,minLat,maxLng,maxLat — covers greater Hyderabad region
+const VIEWBOX = '77.9000,17.1000,78.7000,18.1000'
+
 // ─── Distance ─────────────────────────────────────────────────────────────
 export function haversineKm(a, b) {
   const R = 6371
