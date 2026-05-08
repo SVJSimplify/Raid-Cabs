@@ -27,6 +27,7 @@ import DriverLogin     from './pages/DriverLogin'
 import DriverSignup    from './pages/DriverSignup'
 import DriverHome      from './pages/DriverHome'
 import DriverHistory   from './pages/DriverHistory'
+import AuthCallback    from './pages/AuthCallback'
 
 import './index.css'
 
@@ -66,7 +67,8 @@ export default function App() {
             <Routes>
 
               {/* ── Public ── */}
-              <Route path="/login"         element={<Login/>}/>
+              <Route path="/login"           element={<Login/>}/>
+              <Route path="/auth/callback"   element={<AuthCallback/>}/>
 
               {/* ── Driver Portal ── */}
               <Route path="/driver"         element={<DriverLogin/>}/>
