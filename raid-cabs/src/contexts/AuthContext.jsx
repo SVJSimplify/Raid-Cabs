@@ -77,7 +77,9 @@ export function AuthProvider({ children }) {
   async function signInWithGoogle() {
     return supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      // /auth/callback is an unprotected route — ProtectedRoute never runs
+      // before Supabase can exchange the PKCE code, preventing bad_oauth_state.
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
   }
 
