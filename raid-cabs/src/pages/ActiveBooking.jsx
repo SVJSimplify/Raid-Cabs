@@ -143,6 +143,14 @@ function PinEntry({ onVerified }) {
   )
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Returns minutes from now until the scheduled pickup time (minimum 1). */
+function etaFromScheduled(scheduledAt) {
+  const diffMs = new Date(scheduledAt).getTime() - Date.now()
+  return Math.max(1, Math.round(diffMs / 60_000))
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 const UPI_ID = import.meta.env.VITE_UPI_ID || 'raidcabs@upi'
 
