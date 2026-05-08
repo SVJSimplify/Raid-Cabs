@@ -76,7 +76,7 @@ export default function App() {
               <Route path="/driver/home"    element={<DriverRoute><DriverHome/></DriverRoute>}/>
               <Route path="/driver/history" element={<DriverRoute><DriverHistory/></DriverRoute>}/>
 
-              {/* ── User App ── */}
+              {/* ── User app ── */}
               <Route path="/dashboard" element={<ProtectedRoute><Shell><Dashboard/></Shell></ProtectedRoute>}/>
               <Route path="/deposit"   element={<ProtectedRoute><Shell><Deposit/></Shell></ProtectedRoute>}/>
               <Route path="/active-booking" element={<ProtectedRoute><Shell><ActiveBooking/></Shell></ProtectedRoute>}/>
