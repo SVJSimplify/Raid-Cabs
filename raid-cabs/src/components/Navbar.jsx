@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { LayoutDashboard, History, User, ChevronDown, LogOut, CreditCard } from 'lucide-react'
+import { LayoutDashboard, History, User, ChevronDown, LogOut, CreditCard, Car } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function Navbar() {
