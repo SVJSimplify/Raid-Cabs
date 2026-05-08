@@ -14,24 +14,62 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchProfile = useCallback(async uid => {
+  const fetchProfile = useCallback(async (uid, authUser) => {
     const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
-    setProfile(data || null)
+
+    if (data) {
+      // Backfill avatar/name from Google metadata if still missing
+      const meta = authUser?.user_metadata || {}
+      const updates = {}
+      if (!data.full_name && (meta.full_name || meta.name))
+        updates.full_name  = meta.full_name || meta.name
+      if (!data.avatar_url && (meta.avatar_url || meta.picture))
+        updates.avatar_url = meta.avatar_url || meta.picture
+      if (Object.keys(updates).length) {
+        const { data: updated } = await supabase
+          .from('profiles').update(updates).eq('id', uid).select().maybeSingle()
+        setProfile(updated || data)
+      } else {
+        setProfile(data)
+      }
+    } else if (authUser) {
+      // First-ever login (Google OAuth or otherwise) — create the profile row
+      const meta = authUser.user_metadata || {}
+      const rideCode = makeRideCode()
+      const { data: created } = await supabase
+        .from('profiles')
+        .upsert({
+          id:         uid,
+          full_name:  meta.full_name || meta.name || '',
+          avatar_url: meta.avatar_url || meta.picture || null,
+          ride_code:  rideCode,
+        }, { onConflict: 'id' })
+        .select()
+        .maybeSingle()
+      setProfile(created || null)
+    } else {
+      setProfile(null)
+    }
+
     setLoading(false)
   }, [])
 
   useEffect(() => {
     if (!ENV_OK) { setLoading(false); return }
-    supabase.auth.getSession().then(({ data: { session } }) => {
+
+    // onAuthStateChange fires INITIAL_SESSION immediately — covers both
+    // fresh loads and post-OAuth redirects, so we don't need getSession too.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((ev, session) => {
+      if (ev === 'PASSWORD_RECOVERY') {
+        // Let the reset-password page handle this; don't redirect
+        setLoading(false)
+        return
+      }
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else setLoading(false)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) fetchProfile(session.user.id, session.user)
       else { setProfile(null); setLoading(false) }
     })
+
     return () => subscription.unsubscribe()
   }, [fetchProfile])
 
