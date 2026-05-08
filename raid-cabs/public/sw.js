@@ -35,7 +35,7 @@ self.addEventListener('fetch', e => {
   if (url.pathname.match(/\.(js|css)(\?|$)/)) {
     e.respondWith(
       fetch(request).then(res => {
-        if (res.ok) caches.open(STATIC_CACHE).then(c => c.put(request, res.clone()))
+        if (res.ok) { const clone = res.clone(); caches.open(STATIC_CACHE).then(c => c.put(request, clone)) }
         return res
       }).catch(() => caches.match(request))
     )
@@ -47,7 +47,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       caches.match(request).then(cached => {
         const net = fetch(request).then(res => {
-          if (res.ok) caches.open(STATIC_CACHE).then(c => c.put(request, res.clone()))
+          if (res.ok) { const clone = res.clone(); caches.open(STATIC_CACHE).then(c => c.put(request, clone)) }
           return res
         }).catch(() => null)
         return cached || net
@@ -60,7 +60,7 @@ self.addEventListener('fetch', e => {
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request).then(res => {
-        if (res.ok) caches.open(STATIC_CACHE).then(c => c.put(request, res.clone()))
+        if (res.ok) { const clone = res.clone(); caches.open(STATIC_CACHE).then(c => c.put(request, clone)) }
         return res
       }).catch(async () => {
         return await caches.match('/') || new Response(OFFLINE_PAGE, { headers: { 'Content-Type': 'text/html' } })
