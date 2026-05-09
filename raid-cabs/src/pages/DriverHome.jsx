@@ -97,16 +97,42 @@ export default function DriverHome() {
     return () => clearInterval(iv)
   }, [currentBooking?.scheduled_at, currentBooking?.status])
 
-  // ── PATCH 1: Google Maps sharing link state ──────────────────────
-  const [mapsLink,      setMapsLink]    = useState(currentBooking?.driver_maps_link || '')
+  // ── Maps link state ───────────────────────────────────────────────
+  const [mapsLink,      setMapsLink]      = useState(currentBooking?.driver_maps_link || '')
   const [mapsLinkSaved, setMapsLinkSaved] = useState(false)
-  const [savingLink,    setSavingLink]  = useState(false)
+  const [savingLink,    setSavingLink]    = useState(false)
 
-  // ── PATCH 2: Sync maps link when booking changes ─────────────────
+  // Sync maps link when booking changes
   useEffect(() => {
     setMapsLink(currentBooking?.driver_maps_link || '')
     setMapsLinkSaved(!!currentBooking?.driver_maps_link)
   }, [currentBooking?.id, currentBooking?.driver_maps_link])
+
+  // ── Notify driver when a new booking is assigned ─────────────────
+  const prevBookingIdRef = useRef(null)
+  useEffect(() => {
+    if (!currentBooking) { prevBookingIdRef.current = null; return }
+    if (currentBooking.id !== prevBookingIdRef.current) {
+      if (prevBookingIdRef.current === null) {
+        // Booking just appeared — alert the driver
+        toast('🚕 New ride assigned to you!', {
+          duration: 8000,
+          style: {
+            background: '#0e1f14',
+            color: '#2ecc71',
+            border: '1px solid rgba(46,204,113,.35)',
+            borderLeft: '3px solid #2ecc71',
+            fontFamily: "'Nunito', sans-serif",
+            fontWeight: 700,
+            fontSize: '.9rem',
+            borderRadius: '10px',
+          },
+        })
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400])
+      }
+      prevBookingIdRef.current = currentBooking.id
+    }
+  }, [currentBooking?.id])
 
   const fmtTimer = s => {
     const h = Math.floor(s / 3600)
@@ -127,7 +153,6 @@ export default function DriverHome() {
     return `${sec}s`
   }
 
-  // Driver should dispatch 30 mins before scheduled time
   const DISPATCH_MINS = 30
   const canDispatch = pickupCountdown !== null && pickupCountdown <= DISPATCH_MINS * 60
   const minsToDispatch = pickupCountdown !== null ? Math.ceil((pickupCountdown - DISPATCH_MINS * 60) / 60) : null
@@ -178,11 +203,9 @@ export default function DriverHome() {
 
   const isOnline = driver?.status !== 'offline'
 
-  // Customer position from booking
   const customerPos = currentBooking?.pickup_lat && currentBooking?.pickup_lng
     ? { lat: currentBooking.pickup_lat, lng: currentBooking.pickup_lng } : null
 
-  // Distance to customer
   const distToCustomer = driverPos && customerPos
     ? haversineKm(driverPos, customerPos).toFixed(1) : null
 
@@ -353,7 +376,7 @@ export default function DriverHome() {
                       <div style={{ width:36,height:36,borderRadius:'50%',background:'rgba(46,204,113,.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem',flexShrink:0 }}>✅</div>
                       <div>
                         <div style={{ fontWeight:800, fontSize:'.95rem', color:'#2ecc71' }}>Ride Assigned To You!</div>
-                        <div style={{ fontSize:'.74rem', color:'#9890c2', marginTop:1 }}>Head to pickup. Press Start Ride when passenger is in.</div>
+                        <div style={{ fontSize:'.74rem', color:'#9890c2', marginTop:1 }}>Share your live location below, then head to pickup.</div>
                       </div>
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', gap:'.4rem' }}>
@@ -378,18 +401,18 @@ export default function DriverHome() {
                     </div>
                   </div>
 
-                  {/* ── PATCH 3: Google Maps Link ───────────────────────────────── */}
+                  {/* Google Maps Live Location Link */}
                   <div style={{padding:'1rem',background:'rgba(59,130,246,.07)',border:`2px solid ${mapsLinkSaved?'rgba(46,204,113,.35)':'rgba(59,130,246,.28)'}`,borderRadius:12,marginBottom:'.85rem'}}>
                     <div style={{display:'flex',alignItems:'center',gap:'.55rem',marginBottom:'.6rem'}}>
                       <span style={{fontSize:'1rem'}}>📍</span>
                       <div>
                         <div style={{fontWeight:700,fontSize:'.87rem',color:mapsLinkSaved?'#2ecc71':'#60a5fa'}}>
-                          {mapsLinkSaved ? 'Live Location Shared ✓' : 'Share Your Live Location'}
+                          {mapsLinkSaved ? 'Live Location Shared ✓' : 'Step 1 — Share Your Live Location'}
                         </div>
                         <div style={{fontSize:'.71rem',color:'#504c74',marginTop:1}}>
                           {mapsLinkSaved
-                            ? 'Passenger can see your location. Admin will receive it on pickup.'
-                            : 'Open Google Maps → Share location → paste link here before pickup'}
+                            ? 'Location shared. You can now start heading to pickup.'
+                            : 'Required before you can go to pickup. Open Google Maps → Share location → paste link here.'}
                         </div>
                       </div>
                     </div>
@@ -416,6 +439,7 @@ export default function DriverHome() {
                             if (error) { alert('Could not save link'); setSavingLink(false); return }
                             setMapsLinkSaved(true)
                             setSavingLink(false)
+                            toast.success('Location shared! You can now head to pickup.')
                           }}
                           disabled={savingLink || !mapsLink.trim()}
                           style={{width:'100%',padding:'.65rem',background:'linear-gradient(135deg,#3b82f6,#2563eb)',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontFamily:"'Nunito',sans-serif",fontSize:'.84rem',opacity:!mapsLink.trim()?0.5:1}}
@@ -443,18 +467,27 @@ export default function DriverHome() {
                       </div>
                     )}
                   </div>
-                  {/* ── End Maps Link ──────────────────────────────────── */}
 
-                  {/* START RIDE button — prominent */}
-                  <button className="dh-btn" onClick={() => doAction('in_progress','Ride started!')} disabled={actionLoading}
-                    style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', fontSize:'1rem', fontWeight:800, padding:'1rem', marginBottom:'.6rem', boxShadow:'0 4px 20px rgba(34,197,94,.4)' }}>
-                    {actionLoading ? <Spinner/> : <><Zap size={18}/> Start Ride</>}
-                  </button>
+                  {/* START RIDE — locked until maps link is submitted */}
+                  {!mapsLinkSaved ? (
+                    <div style={{padding:'.9rem 1rem',background:'rgba(255,255,255,.02)',border:'1px dashed rgba(255,255,255,.1)',borderRadius:10,textAlign:'center',marginBottom:'.6rem'}}>
+                      <div style={{fontSize:'.82rem',color:'#504c74',fontWeight:600}}>
+                        🔒 Share your live location above to unlock Start Ride
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="dh-btn" onClick={() => doAction('in_progress','Ride started!')} disabled={actionLoading}
+                      style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', fontSize:'1rem', fontWeight:800, padding:'1rem', marginBottom:'.6rem', boxShadow:'0 4px 20px rgba(34,197,94,.4)' }}>
+                      {actionLoading ? <Spinner/> : <><Zap size={18}/> Start Ride</>}
+                    </button>
+                  )}
+
                   <button className="dh-btn dh-r" onClick={() => doAction('cancelled','Booking cancelled')} disabled={actionLoading}>
                     <XCircle size={14}/> Cancel Ride
                   </button>
                 </>
               )}
+
               {currentBooking.status === 'en_route' && (
                 <>
                   <div style={{ padding:'1rem', background:'rgba(59,130,246,.08)', border:'1px solid rgba(59,130,246,.25)', borderRadius:12, marginBottom:'.75rem', textAlign:'center' }}>
