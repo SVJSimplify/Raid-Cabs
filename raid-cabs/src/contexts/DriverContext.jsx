@@ -41,7 +41,7 @@ export function DriverProvider({ children }) {
       supabase.from('bookings')
         .select('*')
         .eq('driver_id', driverId)
-        .in('status', ['confirmed','en_route','in_progress'])  // confirmed=approved, en_route=going to pickup, in_progress=riding
+        .in('status', ['confirmed', 'en_route', 'in_progress'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -49,24 +49,35 @@ export function DriverProvider({ children }) {
     setCurrentBooking(data || null)
   }
 
-  // Real-time booking updates
+  // Real-time booking updates + poll fallback
+  // The filtered channel catches status changes on already-assigned bookings.
+  // The 30s poll is a fallback for the initial assignment UPDATE where
+  // driver_id goes from null → this driver's ID — Supabase may miss that
+  // event without REPLICA IDENTITY FULL on the bookings table.
   useEffect(() => {
     if (!driver) return
+
     const ch = supabase.channel(`driver-bk-${driver.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'bookings',
         filter: `driver_id=eq.${driver.id}`,
       }, () => fetchCurrentBooking(driver.id))
       .subscribe()
-    return () => supabase.removeChannel(ch)
+
+    const poll = setInterval(() => fetchCurrentBooking(driver.id), 30000)
+
+    return () => {
+      supabase.removeChannel(ch)
+      clearInterval(poll)
+    }
   }, [driver])
 
   const updateBookingStatus = async (bookingId, status) => {
     const extra = {}
     if (status === 'en_route')    extra.dispatched_at = new Date().toISOString()
     if (status === 'in_progress') extra.started_at    = new Date().toISOString()
-    if (status === 'completed')   extra.completed_at = new Date().toISOString()
-    if (status === 'cancelled')   extra.cancelled_at = new Date().toISOString()
+    if (status === 'completed')   extra.completed_at  = new Date().toISOString()
+    if (status === 'cancelled')   extra.cancelled_at  = new Date().toISOString()
 
     const { error } = await q(() =>
       supabase.from('bookings').update({ status, ...extra }).eq('id', bookingId)
@@ -74,9 +85,9 @@ export function DriverProvider({ children }) {
     if (!error) {
       await fetchCurrentBooking(driver.id)
       if (status === 'completed' || status === 'cancelled') {
-        await q(() => supabase.from('drivers').update({ status:'available' }).eq('id', driver.id))
-        setDriver(d => ({ ...d, status:'available' }))
-        sessionStorage.setItem('driver_session', JSON.stringify({ ...driver, status:'available' }))
+        await q(() => supabase.from('drivers').update({ status: 'available' }).eq('id', driver.id))
+        setDriver(d => ({ ...d, status: 'available' }))
+        sessionStorage.setItem('driver_session', JSON.stringify({ ...driver, status: 'available' }))
       }
     }
     return { error }
