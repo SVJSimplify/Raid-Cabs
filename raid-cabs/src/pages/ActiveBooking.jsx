@@ -261,8 +261,8 @@ export default function ActiveBooking() {
     // Fetch immediately
     fetchPos()
 
-    // Poll every 6 seconds as fallback (works even if realtime isn't configured)
-    const poll = setInterval(fetchPos, 15000) // poll every 15 seconds
+    // Poll every 15 seconds as fallback (works even if realtime isn't configured)
+    const poll = setInterval(fetchPos, 15000)
 
     // Also subscribe to realtime for instant updates
     const ch = supabase.channel(`drv-loc-${driver.id}`)
@@ -446,6 +446,33 @@ export default function ActiveBooking() {
                     </button>
                   )}
                 </div>
+
+                {/* Driver Live Location Link — visible only during confirmed/en_route, not in_progress */}
+                {driver && (isConfirmed || isEnRoute) && booking?.driver_maps_link && (
+                  <div style={{
+                    marginTop:'1rem', padding:'.9rem 1rem',
+                    background:'rgba(59,130,246,.07)',
+                    border:'1px solid rgba(59,130,246,.3)',
+                    borderRadius:'var(--rs)',
+                  }}>
+                    <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',color:'var(--ts)',marginBottom:'.5rem',display:'flex',alignItems:'center',gap:5}}>
+                      <span style={{width:7,height:7,borderRadius:'50%',background:'#3b82f6',display:'inline-block',animation:'pulse 1.6s infinite'}}/>
+                      Driver Live Location
+                    </div>
+                    <p style={{fontSize:'.8rem',color:'var(--ts)',marginBottom:'.65rem',lineHeight:1.5}}>
+                      Your driver shared their live location. Tap to follow them on Google Maps.
+                    </p>
+                    <a
+                      href={booking.driver_maps_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-blue w100"
+                      style={{justifyContent:'center',textDecoration:'none',display:'flex',alignItems:'center',gap:6,padding:'.65rem'}}
+                    >
+                      🗺️ Open Driver&apos;s Live Location
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
