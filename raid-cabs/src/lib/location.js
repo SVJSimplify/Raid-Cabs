@@ -1,11 +1,8 @@
 // ─── Location, Geocoding & Routing ────────────────────────────────────────
-// All free services, no API key required.
-// Geocoding: Nominatim (OpenStreetMap) — biased to IIT Hyderabad area
-// Routing ETA: Haversine × 1.40 road factor
+// Geocoding : Nominatim (OpenStreetMap) — biased to IIT Hyderabad area
+// ETA       : Google Maps DirectionsService → ORS proxy → haversine fallback
 
-const IIT = { lat: 17.5934, lng: 78.1270 }
-
-// Nominatim viewbox: minLng,minLat,maxLng,maxLat — covers greater Hyderabad region
+const IIT    = { lat: 17.5934, lng: 78.1270 }
 const VIEWBOX = '77.9000,17.1000,78.7000,18.1000'
 
 // ─── Distance ─────────────────────────────────────────────────────────────
@@ -18,9 +15,61 @@ export function haversineKm(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x))
 }
 
-// Routing via OpenRouteService (proxied through /api/route to avoid CORS)
+// ─── ETA Persistence (prevents reset on reload) ───────────────────────────
+// Call saveEta() when a booking is created; call loadEta() in ActiveBooking.
+const ETA_TTL_MS = 6 * 3600 * 1000 // 6 hours
 
+export function saveEta(bookingId, data) {
+  try {
+    localStorage.setItem(`eta_${bookingId}`, JSON.stringify({ ...data, _ts: Date.now() }))
+  } catch {}
+}
+
+export function loadEta(bookingId) {
+  try {
+    const raw = localStorage.getItem(`eta_${bookingId}`)
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    if (Date.now() - d._ts > ETA_TTL_MS) { localStorage.removeItem(`eta_${bookingId}`); return null }
+    return d
+  } catch { return null }
+}
+
+export function clearEta(bookingId) {
+  try { localStorage.removeItem(`eta_${bookingId}`) } catch {}
+}
+
+// ─── Route info: Google Maps → ORS proxy → haversine ─────────────────────
 export async function getRouteInfo(origin, dest) {
+  // 1. Google Maps DirectionsService (available after LiveMap loads the API)
+  if (window.google?.maps?.DirectionsService) {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        new window.google.maps.DirectionsService().route(
+          {
+            origin:      { lat: origin.lat, lng: origin.lng },
+            destination: { lat: dest.lat,   lng: dest.lng   },
+            travelMode:  window.google.maps.TravelMode.DRIVING,
+          },
+          (res, status) => status === 'OK' ? resolve(res) : reject(status)
+        )
+      })
+      const leg    = result.routes[0].legs[0]
+      const distKm = +(leg.distance.value / 1000).toFixed(1)
+      // duration_in_traffic when available (requires billing); else plain duration
+      const secs   = leg.duration_in_traffic?.value ?? leg.duration.value
+      return {
+        distKm,
+        tripMins:        Math.max(5, Math.ceil(secs / 60)),
+        driverEta:       Math.ceil(8 + Math.random() * 12),
+        source:          'gmaps',
+        directionsResult: result,
+        geometry:        null,
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 2. ORS proxy (server-side, avoids CORS)
   try {
     const res = await fetch(
       `/api/route?startLng=${origin.lng}&startLat=${origin.lat}&endLng=${dest.lng}&endLat=${dest.lat}`,
@@ -29,158 +78,120 @@ export async function getRouteInfo(origin, dest) {
     if (res.ok) {
       const data = await res.json()
       if (!data.fallback && data.distanceKm) {
-        // Add 25% buffer to ORS duration for Indian traffic conditions
-        const bufferedMins = Math.ceil(data.durationMins * 1.25)
         return {
-          distKm:    data.distanceKm,
-          tripMins:  Math.max(5, bufferedMins),
-          driverEta: Math.ceil(8 + Math.random() * 12), // 8-20 mins
-          source:    'ors',
-          geometry:  data.geometry,
+          distKm:          data.distanceKm,
+          tripMins:        Math.max(5, Math.ceil(data.durationMins * 1.25)),
+          driverEta:       Math.ceil(8 + Math.random() * 12),
+          source:          'ors',
+          directionsResult: null,
+          geometry:        data.geometry,
         }
       }
     }
-  } catch {}
-  // Fallback: haversine × 1.45 road factor (Indian roads wind more)
+  } catch { /* fall through */ }
+
+  // 3. Haversine fallback
   const km = +(haversineKm(origin, dest) * 1.45).toFixed(1)
-  // Realistic Hyderabad speed: ~20 km/h in city traffic = 0.333 km/min
-  // Add 15% buffer for signals, turns, traffic
-  const rawMins = Math.ceil((km / 0.333) * 1.15)
   return {
-    distKm:    km,
-    tripMins:  Math.max(5, rawMins),  // minimum 5 mins even for short distances
-    driverEta: Math.ceil(8 + Math.random() * 12), // realistic: 8-20 mins for driver to arrive
-    source:    'estimate',
-    geometry:  null,
+    distKm:          km,
+    tripMins:        Math.max(5, Math.ceil((km / 0.333) * 1.15)),
+    driverEta:       Math.ceil(8 + Math.random() * 12),
+    source:          'estimate',
+    directionsResult: null,
+    geometry:        null,
   }
 }
 
-// Get actual route geometry (returns GeoJSON LineString or null)
 export async function getRouteGeometry(origin, dest) {
   const info = await getRouteInfo(origin, dest)
   return info.geometry || null
 }
 
 // ─── Fare ─────────────────────────────────────────────────────────────────
-// Concession formula: floor(totalDeposited / 1000) * 10 = fixed ₹ off per ride
-// e.g. ₹5,000 deposited → ₹50 off every ride
-//      ₹10,000 deposited → ₹100 off every ride
 export function calcConcession(totalDeposited) {
   return Math.floor((totalDeposited || 0) / 1000) * 10
 }
 
 export function calcFare(km, concessionAmount = 0, ratePerKm = 12, minFare = 80) {
   const base     = Math.max(minFare, Math.round(km * ratePerKm))
-  const discount = Math.min(concessionAmount, base) // can't discount more than fare
+  const discount = Math.min(concessionAmount, base)
   return { base, discount, final: Math.max(0, base - discount) }
 }
 
-// ─── Nominatim search — high accuracy with IIT area bias ──────────────────
+// ─── Nominatim search — IIT Hyderabad area bias ───────────────────────────
 let _lastCall = 0
 
 export async function searchPlaces(query) {
   const q = query?.trim()
   if (!q || q.length < 2) return []
 
-  // Rate limit: 1 req/sec (Nominatim policy)
   const wait = 1100 - (Date.now() - _lastCall)
   if (wait > 0) await new Promise(r => setTimeout(r, wait))
   _lastCall = Date.now()
 
   try {
     const params = new URLSearchParams({
-      q,
-      format:         'json',
-      addressdetails: '1',
-      extratags:      '1',
-      namedetails:    '1',
-      countrycodes:   'IN',
-      viewbox:        VIEWBOX,
-      bounded:        '0',    // 0 = prefer viewbox but also show outside
-      limit:          '8',
-      dedupe:         '1',
+      q, format:'json', addressdetails:'1', extratags:'1', namedetails:'1',
+      countrycodes:'IN', viewbox:VIEWBOX, bounded:'0', limit:'8', dedupe:'1',
     })
-
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?${params}`,
-      {
-        signal:  AbortSignal.timeout(6000),
-        headers: { 'User-Agent': 'RaidCabs/1.0 (IIT Hyderabad campus cab service)' },
-      }
+      { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'RaidCabs/1.0 (IIT Hyderabad)' } }
     )
     if (!res.ok) return []
-
     const data = await res.json()
     if (!data?.length) return []
 
-    return data
-      .map(p => {
-        const a    = p.address || {}
-        const name = p.namedetails?.name || p.namedetails?.['name:en']
-          || a.road || a.neighbourhood || a.suburb
-          || p.display_name.split(',')[0]
-
-        const parts = [
-          a.road || a.neighbourhood || a.suburb,
-          a.city || a.town || a.village || a.county,
-          a.state,
-        ].filter(Boolean)
-
-        const shortAddr = parts.length > 1
-          ? parts.slice(0, 3).join(', ')
-          : p.display_name.split(',').slice(0, 3).join(',').trim()
-
-        return {
-          id:       String(p.place_id),
-          name:     name || shortAddr,
-          address:  shortAddr,
-          full:     p.display_name,
-          lat:      parseFloat(p.lat),
-          lng:      parseFloat(p.lon),
-          type:     p.type,
-          class:    p.class,
-          // Boost score for results near IIT
-          _dist:    haversineKm({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }, IIT),
-        }
-      })
-      // Sort: exact name matches first, then by distance to IIT
-      .sort((a, b) => {
-        const aName = a.name.toLowerCase()
-        const bName = b.name.toLowerCase()
-        const qLower = q.toLowerCase()
-        const aStarts = aName.startsWith(qLower) ? -1 : 0
-        const bStarts = bName.startsWith(qLower) ? -1 : 0
-        if (aStarts !== bStarts) return aStarts - bStarts
-        return a._dist - b._dist // closer to IIT first
-      })
-      .slice(0, 6)
-
+    return data.map(p => {
+      const a    = p.address || {}
+      const name = p.namedetails?.name || p.namedetails?.['name:en']
+        || a.road || a.neighbourhood || a.suburb || p.display_name.split(',')[0]
+      const parts = [
+        a.road || a.neighbourhood || a.suburb,
+        a.city || a.town || a.village || a.county,
+        a.state,
+      ].filter(Boolean)
+      const shortAddr = parts.length > 1
+        ? parts.slice(0,3).join(', ')
+        : p.display_name.split(',').slice(0,3).join(',').trim()
+      return {
+        id: String(p.place_id), name: name || shortAddr,
+        address: shortAddr, full: p.display_name,
+        lat: parseFloat(p.lat), lng: parseFloat(p.lon),
+        type: p.type, class: p.class,
+        _dist: haversineKm({ lat:parseFloat(p.lat), lng:parseFloat(p.lon) }, IIT),
+      }
+    }).sort((a, b) => {
+      const qL = q.toLowerCase()
+      const aS = a.name.toLowerCase().startsWith(qL) ? -1 : 0
+      const bS = b.name.toLowerCase().startsWith(qL) ? -1 : 0
+      return aS !== bS ? aS - bS : a._dist - b._dist
+    }).slice(0, 6)
   } catch (err) {
     if (err.name !== 'AbortError') console.warn('[location] search error:', err.message)
     return []
   }
 }
 
-// ─── Known campus locations (instant, no API call) ────────────────────────
+// ─── Known campus locations ────────────────────────────────────────────────
 export const CAMPUS_PLACES = [
-  { id: 'iit-main-gate',   name: 'IIT Hyderabad Main Gate',    address: 'Kandi, Sangareddy, Telangana',      lat: 17.5942, lng: 78.1245 },
-  { id: 'iit-academic',    name: 'IIT Hyderabad Academic Block',address: 'IIT Hyderabad Campus',              lat: 17.5934, lng: 78.1270 },
-  { id: 'iit-hostel-a',    name: 'Hostel A — IIT Hyderabad',   address: 'IIT Hyderabad Campus',              lat: 17.5918, lng: 78.1282 },
-  { id: 'iit-hostel-b',    name: 'Hostel B — IIT Hyderabad',   address: 'IIT Hyderabad Campus',              lat: 17.5922, lng: 78.1295 },
-  { id: 'sangareddy-bus',  name: 'Sangareddy Bus Stand',        address: 'Sangareddy, Telangana 502001',      lat: 17.6208, lng: 78.0882 },
-  { id: 'patancheru',      name: 'Patancheru',                  address: 'Patancheru, Telangana 502319',      lat: 17.5328, lng: 78.2637 },
-  { id: 'lingampally',     name: 'Lingampally Station',         address: 'Lingampally, Hyderabad',            lat: 17.4932, lng: 78.3163 },
-  { id: 'hyd-airport',     name: 'Rajiv Gandhi International Airport',address:'Shamshabad, Hyderabad 501218', lat: 17.2403, lng: 78.4294 },
-  { id: 'secunderabad',    name: 'Secunderabad Railway Station', address: 'Secunderabad, Telangana 500003',   lat: 17.4399, lng: 78.4983 },
-  { id: 'hyderabad-central',name:'Hyderabad Central Station',   address: 'Nampally, Hyderabad 500001',       lat: 17.3840, lng: 78.4742 },
+  { id:'iit-main-gate',    name:'IIT Hyderabad Main Gate',         address:'Kandi, Sangareddy, Telangana',      lat:17.5942, lng:78.1245 },
+  { id:'iit-academic',     name:'IIT Hyderabad Academic Block',    address:'IIT Hyderabad Campus',              lat:17.5934, lng:78.1270 },
+  { id:'iit-hostel-a',     name:'Hostel A — IIT Hyderabad',        address:'IIT Hyderabad Campus',              lat:17.5918, lng:78.1282 },
+  { id:'iit-hostel-b',     name:'Hostel B — IIT Hyderabad',        address:'IIT Hyderabad Campus',              lat:17.5922, lng:78.1295 },
+  { id:'sangareddy-bus',   name:'Sangareddy Bus Stand',            address:'Sangareddy, Telangana 502001',      lat:17.6208, lng:78.0882 },
+  { id:'patancheru',       name:'Patancheru',                      address:'Patancheru, Telangana 502319',      lat:17.5328, lng:78.2637 },
+  { id:'lingampally',      name:'Lingampally Station',             address:'Lingampally, Hyderabad',            lat:17.4932, lng:78.3163 },
+  { id:'hyd-airport',      name:'Rajiv Gandhi International Airport', address:'Shamshabad, Hyderabad 501218',   lat:17.2403, lng:78.4294 },
+  { id:'secunderabad',     name:'Secunderabad Railway Station',    address:'Secunderabad, Telangana 500003',    lat:17.4399, lng:78.4983 },
+  { id:'hyderabad-central',name:'Hyderabad Central Station',       address:'Nampally, Hyderabad 500001',       lat:17.3840, lng:78.4742 },
 ]
 
 export function searchCampusPlaces(query) {
   const q = query.toLowerCase().trim()
   if (!q) return []
   return CAMPUS_PLACES.filter(p =>
-    p.name.toLowerCase().includes(q) ||
-    p.address.toLowerCase().includes(q)
+    p.name.toLowerCase().includes(q) || p.address.toLowerCase().includes(q)
   )
 }
 
@@ -189,25 +200,16 @@ export async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=16&addressdetails=1`,
-      {
-        signal:  AbortSignal.timeout(6000),
-        headers: { 'User-Agent': 'RaidCabs/1.0' },
-      }
+      { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'RaidCabs/1.0' } }
     )
     if (!res.ok) return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
     const data = await res.json()
     const a    = data?.address || {}
-
     const parts = [
       a.building || a.amenity || a.road || a.neighbourhood || a.suburb,
       a.city || a.town || a.village || a.county,
       a.state,
     ].filter(Boolean)
-
-    return parts.length >= 2
-      ? parts.slice(0, 3).join(', ')
-      : `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-  } catch {
-    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-  }
+    return parts.length >= 2 ? parts.slice(0,3).join(', ') : `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+  } catch { return `${lat.toFixed(5)}, ${lng.toFixed(5)}` }
 }
