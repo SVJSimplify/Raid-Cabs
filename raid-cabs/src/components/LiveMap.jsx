@@ -12,7 +12,7 @@ function loadGMaps() {
     const cb = '__gmInit_rc'
     window[cb] = () => { resolve(); delete window[cb] }
     const s = document.createElement('script')
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&libraries=geometry&callback=${cb}`
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&libraries=geometry&loading=async&callback=${cb}`
     s.async = true
     s.onerror = () => { reject(new Error('Google Maps failed')); _gmLoader = null }
     document.head.appendChild(s)
