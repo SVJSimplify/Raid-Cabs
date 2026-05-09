@@ -20,7 +20,6 @@ function PendingRidesPanel({ drivers, load }) {
   const loadRides = React.useCallback(() => {
     setLoading(true)
     q(() => supabase.from('bookings')
-      // Fix: explicit :user_id hint to avoid PGRST201 ambiguity
       .select('*,profiles:user_id(full_name,phone,balance,total_deposited,ride_code,emergency_contact_name,emergency_contact_phone),drivers:driver_id(name,photo_url,vehicle_number,vehicle_model,phone,rating)')
       .in('status', ['pending_admin','confirmed','en_route','in_progress'])
       .order('scheduled_at', { ascending:true })
@@ -120,6 +119,47 @@ function PendingRidesPanel({ drivers, load }) {
                     <div style={{fontSize:'.8rem',fontWeight:700,color:'#22c55e'}}>{b.drivers.name}</div>
                     <div style={{fontSize:'.72rem',color:'#504c74'}}>{b.drivers.vehicle_model} · {b.drivers.vehicle_number}</div>
                     <div style={{fontSize:".75rem",color:"#ffb347",marginLeft:"auto"}}> {Number(b.drivers.rating||5).toFixed(1)}</div>
+                  </div>
+                )}
+
+                {/* Driver Live Location — visible only after driver submitted link AND ride not yet in_progress */}
+                {b.driver_maps_link && b.status !== 'in_progress' && b.status !== 'completed' && (
+                  <div style={{marginTop:'.6rem',display:'flex',alignItems:'center',gap:'.75rem',background:'rgba(59,130,246,.08)',border:'1px solid rgba(59,130,246,.28)',borderRadius:8,padding:'.55rem .85rem'}}>
+                    <div style={{fontSize:'.85rem'}}>📍</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:'.78rem',fontWeight:700,color:'#60a5fa'}}>Driver shared live location</div>
+                      <div style={{fontSize:'.7rem',color:'#504c74',marginTop:1}}>
+                        Submitted {b.maps_link_submitted_at
+                          ? new Date(b.maps_link_submitted_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})
+                          : ''}
+                      </div>
+                    </div>
+                    <a
+                      href={b.driver_maps_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{background:'rgba(59,130,246,.12)',border:'1px solid rgba(59,130,246,.3)',color:'#60a5fa',borderRadius:7,padding:'.38rem .82rem',fontSize:'.76rem',fontWeight:700,textDecoration:'none',whiteSpace:'nowrap'}}
+                    >
+                      Open Map →
+                    </a>
+                  </div>
+                )}
+
+                {/* Link arrived post-pickup (status = in_progress) — admin-only archive */}
+                {b.driver_maps_link && b.status === 'in_progress' && (
+                  <div style={{marginTop:'.6rem',display:'flex',alignItems:'center',gap:'.75rem',background:'rgba(46,204,113,.05)',border:'1px solid rgba(46,204,113,.18)',borderRadius:8,padding:'.45rem .85rem'}}>
+                    <div style={{fontSize:'.8rem'}}>✅</div>
+                    <div style={{flex:1,fontSize:'.73rem',color:'#504c74'}}>
+                      Pickup location link (archived — ride in progress)
+                    </div>
+                    <a
+                      href={b.driver_maps_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{color:'#504c74',borderRadius:7,padding:'.28rem .65rem',fontSize:'.7rem',fontWeight:700,textDecoration:'none',border:'1px solid rgba(255,255,255,.08)',whiteSpace:'nowrap'}}
+                    >
+                      View
+                    </a>
                   </div>
                 )}
               </div>
@@ -354,7 +394,7 @@ const SC = { confirmed:'#2ecc71', en_route:'#3b82f6', in_progress:'#ffb347', com
 
 const II = ({ value, onChange, type='text', placeholder='', w=90 }) => (
   <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-    style={{ background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,165,40,.18)', borderRadius:6, padding:'.35rem .55rem', color:'#ede8d8', fontSize:'.8rem', width:w, fontFamily:"'Nunito',sans-serif", outline:'none' }}/>
+    style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,165,40,.15)', borderRadius:6, padding:'.32rem .5rem', color:'#ede8d8', fontSize:'.78rem', width:w, fontFamily:"'Nunito',sans-serif", outline:'none' }}/>
 )
 
 export default function OpsDashboard() {
@@ -374,9 +414,7 @@ export default function OpsDashboard() {
       q(() => supabase.from('discount_tiers').select('*').order('sort_order')),
       q(() => supabase.from('drivers').select('*').eq('is_approved',true).order('created_at',{ascending:false})),
       q(() => supabase.from('drivers').select('*').eq('is_approved',false).order('created_at',{ascending:false})),
-      // Fix: use profiles:user_id to avoid PGRST201 ambiguity
       q(() => supabase.from('bookings').select('id,pickup_address,final_fare,status,created_at,user_id,driver_id,profiles:user_id(full_name),drivers:driver_id(name)').order('created_at',{ascending:false}).limit(100)),
-      // Fix: no profiles join on deposits, look up from users array
       q(() => supabase.from('deposits').select('id,amount,discount_applied,payment_ref,status,created_at,user_id').order('created_at',{ascending:false}).limit(60)),
       q(() => supabase.from('profiles').select('*').order('created_at',{ascending:false})),
     ])
