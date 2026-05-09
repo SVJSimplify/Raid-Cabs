@@ -39,9 +39,9 @@ export default function DriverHome() {
         const { latitude: lat, longitude: lng } = pos.coords
         setDriverPos({ lat, lng })
         setGpsError(false)
-        // Push to Supabase every 4 seconds
+        // Push to Supabase every 15 seconds
         const now = Date.now()
-        if (now - lastPush > 15000) { // push every 15 seconds
+        if (now - lastPush > 15000) {
           lastPush = now
           const { error } = await supabase.from('drivers').update({
             current_lat: lat,
@@ -97,6 +97,17 @@ export default function DriverHome() {
     return () => clearInterval(iv)
   }, [currentBooking?.scheduled_at, currentBooking?.status])
 
+  // ── PATCH 1: Google Maps sharing link state ──────────────────────
+  const [mapsLink,      setMapsLink]    = useState(currentBooking?.driver_maps_link || '')
+  const [mapsLinkSaved, setMapsLinkSaved] = useState(false)
+  const [savingLink,    setSavingLink]  = useState(false)
+
+  // ── PATCH 2: Sync maps link when booking changes ─────────────────
+  useEffect(() => {
+    setMapsLink(currentBooking?.driver_maps_link || '')
+    setMapsLinkSaved(!!currentBooking?.driver_maps_link)
+  }, [currentBooking?.id, currentBooking?.driver_maps_link])
+
   const fmtTimer = s => {
     const h = Math.floor(s / 3600)
     const m = Math.floor((s % 3600) / 60)
@@ -128,7 +139,6 @@ export default function DriverHome() {
       toast.error(error.message)
     } else {
       toast.success(label)
-        // Send email + deduct balance on completion
       const sendEmail = (type, extra={}) => fetch('/api/send-email', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ type, bookingId:currentBooking.id, ...extra })
@@ -145,7 +155,6 @@ export default function DriverHome() {
         if (prof) {
           const newBal = Math.max(0, Number(prof.balance || 0) - Number(currentBooking.final_fare || 0))
           await supabase.from('profiles').update({ balance: newBal }).eq('id', currentBooking.user_id)
-          // Log transaction
           supabase.from('balance_transactions').insert({
             user_id: currentBooking.user_id,
             booking_id: currentBooking.id,
@@ -368,6 +377,74 @@ export default function DriverHome() {
                       )}
                     </div>
                   </div>
+
+                  {/* ── PATCH 3: Google Maps Link ───────────────────────────────── */}
+                  <div style={{padding:'1rem',background:'rgba(59,130,246,.07)',border:`2px solid ${mapsLinkSaved?'rgba(46,204,113,.35)':'rgba(59,130,246,.28)'}`,borderRadius:12,marginBottom:'.85rem'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'.55rem',marginBottom:'.6rem'}}>
+                      <span style={{fontSize:'1rem'}}>📍</span>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:'.87rem',color:mapsLinkSaved?'#2ecc71':'#60a5fa'}}>
+                          {mapsLinkSaved ? 'Live Location Shared ✓' : 'Share Your Live Location'}
+                        </div>
+                        <div style={{fontSize:'.71rem',color:'#504c74',marginTop:1}}>
+                          {mapsLinkSaved
+                            ? 'Passenger can see your location. Admin will receive it on pickup.'
+                            : 'Open Google Maps → Share location → paste link here before pickup'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!mapsLinkSaved && (
+                      <>
+                        <input
+                          type="url"
+                          placeholder="https://maps.google.com/..."
+                          value={mapsLink}
+                          onChange={e => setMapsLink(e.target.value)}
+                          style={{width:'100%',background:'rgba(255,255,255,.05)',border:'1px solid rgba(59,130,246,.3)',borderRadius:8,padding:'.62rem .85rem',color:'#ede8d8',fontFamily:"'Nunito',sans-serif",fontSize:'.84rem',outline:'none',boxSizing:'border-box',marginBottom:'.6rem'}}
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!mapsLink.trim() || !mapsLink.startsWith('http')) {
+                              alert('Paste a valid Google Maps link'); return
+                            }
+                            setSavingLink(true)
+                            const { error } = await supabase.from('bookings').update({
+                              driver_maps_link: mapsLink.trim(),
+                              maps_link_submitted_at: new Date().toISOString(),
+                            }).eq('id', currentBooking.id)
+                            if (error) { alert('Could not save link'); setSavingLink(false); return }
+                            setMapsLinkSaved(true)
+                            setSavingLink(false)
+                          }}
+                          disabled={savingLink || !mapsLink.trim()}
+                          style={{width:'100%',padding:'.65rem',background:'linear-gradient(135deg,#3b82f6,#2563eb)',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontFamily:"'Nunito',sans-serif",fontSize:'.84rem',opacity:!mapsLink.trim()?0.5:1}}
+                        >
+                          {savingLink ? 'Saving…' : '📍 Submit Location Link'}
+                        </button>
+                        <p style={{fontSize:'.7rem',color:'#504c74',marginTop:'.45rem',lineHeight:1.5}}>
+                          How: Google Maps app → blue dot → Share location → Copy link
+                        </p>
+                      </>
+                    )}
+
+                    {mapsLinkSaved && (
+                      <div style={{display:'flex',gap:'.5rem'}}>
+                        <a href={mapsLink} target="_blank" rel="noreferrer"
+                          style={{flex:1,padding:'.55rem',background:'rgba(46,204,113,.1)',border:'1px solid rgba(46,204,113,.25)',color:'#2ecc71',borderRadius:8,textAlign:'center',fontSize:'.8rem',fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                          🗺️ Open My Link
+                        </a>
+                        <button
+                          onClick={() => { setMapsLinkSaved(false); setMapsLink('') }}
+                          style={{padding:'.55rem .85rem',background:'transparent',border:'1px solid rgba(255,255,255,.1)',color:'#9890c2',borderRadius:8,cursor:'pointer',fontFamily:"'Nunito',sans-serif",fontSize:'.78rem',fontWeight:700}}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {/* ── End Maps Link ──────────────────────────────────── */}
+
                   {/* START RIDE button — prominent */}
                   <button className="dh-btn" onClick={() => doAction('in_progress','Ride started!')} disabled={actionLoading}
                     style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', border:'none', fontSize:'1rem', fontWeight:800, padding:'1rem', marginBottom:'.6rem', boxShadow:'0 4px 20px rgba(34,197,94,.4)' }}>
@@ -423,7 +500,7 @@ export default function DriverHome() {
 
             {/* Call passenger */}
             <div className="dh-card" style={{ display:'flex', alignItems:'center', gap:'.9rem' }}>
-              <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(52,152,219,.1)', border:'1px solid rgba(52,152,219,.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'1.1rem' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+              <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(52,152,219,.1)', border:'1px solid rgba(52,152,219,.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'1.1rem' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
               <div style={{ flex:1 }}><div style={{ fontWeight:700, fontSize:'.87rem' }}>Passenger</div><div style={{ fontSize:'.74rem', color:'#504c74' }}>Call if you cannot find them</div></div>
               <a href={`tel:${currentBooking.user_phone||''}`} style={{ background:'rgba(52,152,219,.1)', border:'1px solid rgba(52,152,219,.22)', color:'#3498db', borderRadius:8, padding:'.45rem .9rem', fontWeight:700, fontSize:'.82rem', textDecoration:'none', display:'flex', alignItems:'center', gap:5 }}>
                 <Phone size={13}/> Call
