@@ -7,6 +7,7 @@ import { supabase, q } from '../lib/supabase'
 import LiveMap from '../components/LiveMap'
 import { LogOut, RefreshCw, Plus, Pencil, Trash2, Check, X, CheckCircle, XCircle, AlertTriangle, BarChart2, Car, CreditCard, Package, Users, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useAdminNotifications } from '../hooks/useAdminNotifications'
 
 function PendingRidesPanel({ drivers, load }) {
   const [rides,      setRides]   = React.useState([])
@@ -399,6 +400,7 @@ const II = ({ value, onChange, type='text', placeholder='', w=90 }) => (
 
 export default function OpsDashboard() {
   const { profile, signOut } = useAuth()
+  useAdminNotifications(true)
   const navigate = useNavigate()
   const [showAddDriver, setShowAddDriver] = useState(false)
   const [newDriver,    setNewDriver]     = useState({ name:'', phone:'', vehicle_model:'', vehicle_number:'', login_pin:'' })
