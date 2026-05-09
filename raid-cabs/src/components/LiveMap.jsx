@@ -1,6 +1,5 @@
-// LiveMap — Leaflet + Mappls Raster Tiles
-// Static import works fine — Leaflet uses DOM canvas, no WebGL workers
-// v1.0 used static Leaflet import and was confirmed working
+// LiveMap — Leaflet + OSM tiles (Mappls when key available)
+// Tile fix: switched from CartoDB to tile.openstreetmap.org
 
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
@@ -10,7 +9,7 @@ const KEY = import.meta.env.VITE_MAPPLS_KEY || ''
 
 const TILE_URL = KEY
   ? `https://apis.mappls.com/advancedmaps/v1/${KEY}/tiles/default/{z}/{x}/{y}.png`
-  : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 
 // ── Bearing ────────────────────────────────────────────────────────
 function getBearing(a, b) {
@@ -113,11 +112,19 @@ export default function LiveMap({
     if (!divRef.current || mapRef.current) return
     const center = userPos || driverPos || dropPos || { lat:17.5934, lng:78.127 }
 
-    // Leaflet + OpenStreetMap
-    const map = L.map(divRef.current, { center:[center.lat,center.lng], zoom:13, zoomControl:true, attributionControl:false, zoomSnap:0.5, zoomDelta:0.5, wheelPxPerZoomLevel:120 })
-    L.tileLayer(TILE_URL, { maxZoom:18, subdomains:'abcd', attribution: KEY ? '© Mappls © OSM' : '© CARTO' }).addTo(map)
+    const map = L.map(divRef.current, {
+      center:[center.lat,center.lng], zoom:13,
+      zoomControl:true, attributionControl:false,
+      zoomSnap:0.5, zoomDelta:0.5, wheelPxPerZoomLevel:120,
+    })
+
+    L.tileLayer(TILE_URL, {
+      maxZoom:18,
+      subdomains: KEY ? 'abcd' : 'abc',
+      attribution: KEY ? '&copy; Mappls &copy; OSM' : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map)
+
     L.control.attribution({ prefix:false }).addTo(map)
-    // Track when user manually zooms/pans — stop auto-zoom after that
     map._userInteracted = false
     map.on('zoomstart', (e) => { if (e.originalEvent) map._userInteracted = true })
     map.on('dragstart', () => { map._userInteracted = true })
@@ -134,16 +141,12 @@ export default function LiveMap({
     const map = mapRef.current
     if (!map) return
 
-    // ── Leaflet rendering ───────────────────────────────────────────
-
-    // Pickup marker
     if (userPos) {
       if (marksRef.current.user) smoothMove(marksRef.current.user, userPos.lat, userPos.lng)
       else marksRef.current.user = L.marker([userPos.lat,userPos.lng], { icon:pickupIcon(), zIndexOffset:100 })
         .addTo(map).bindPopup(adminMode ? 'Passenger' : 'Your Pickup')
     }
 
-    // Driver marker
     if (driverPos) {
       const deg = prevDrv.current ? getBearing(prevDrv.current, driverPos) : 0
       prevDrv.current = driverPos
@@ -156,14 +159,12 @@ export default function LiveMap({
       }
     }
 
-    // Destination marker
     if (dropPos) {
       if (marksRef.current.drop) smoothMove(marksRef.current.drop, dropPos.lat, dropPos.lng)
       else marksRef.current.drop = L.marker([dropPos.lat,dropPos.lng], { icon:destIcon(dropPos.label||'Destination'), zIndexOffset:200 })
         .addTo(map).bindPopup(dropPos.label||'Destination')
     }
 
-    // Route lines
     linesRef.current.forEach(l => map.removeLayer(l))
     linesRef.current = []
 
@@ -179,9 +180,7 @@ export default function LiveMap({
       linesRef.current.push(L.polyline(path, { color:'#f5a623', weight:5, opacity:.9 }).addTo(map))
     }
 
-    // Smart zoom
     if (zoomTimer.current) clearTimeout(zoomTimer.current)
-    // Only auto-zoom if user hasn't manually interacted with the map
     if (!map._userInteracted) {
       zoomTimer.current = setTimeout(() => {
         const pts = []
