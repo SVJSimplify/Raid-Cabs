@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, q } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { getRouteInfo, searchPlaces, reverseGeocode, calcFare, calcConcession, searchCampusPlaces, CAMPUS_PLACES } from '../lib/location'
+import { getRouteInfo, searchPlaces, getPlaceCoords, reverseGeocode, calcFare, calcConcession, searchCampusPlaces, CAMPUS_PLACES } from '../lib/location'
 import LiveMap from '../components/LiveMap'
 import { ArrowLeft, MapPin, Navigation, CheckCircle, Zap, X, Search, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -102,15 +102,21 @@ export default function BookCab() {
   const handlePickupInput = makeSearch(setPickup, setUserPos, setSugs, setSugLoad, setShowSugs, sugTimer)
   const handleDropInput   = makeSearch(setDrop, setDropPos, setDropSugs, setDropSugLoad, setShowDropSugs, dropTimer)
 
-  const selectPickup = sug => {
+  const selectPickup = async sug => {
     setPickup(sug.address || sug.name)
-    if (sug.lat && sug.lng) setUserPos({ lat: sug.lat, lng: sug.lng })
+    if (sug.placeId && !sug.lat) {
+      const coords = await getPlaceCoords(sug.placeId)
+      if (coords) setUserPos({ lat: coords.lat, lng: coords.lng })
+    } else if (sug.lat && sug.lng) setUserPos({ lat: sug.lat, lng: sug.lng })
     setSugs([]); setShowSugs(false)
   }
 
-  const selectDrop = sug => {
+  const selectDrop = async sug => {
     setDrop(sug.name || sug.address)
-    if (sug.lat && sug.lng) setDropPos({ lat: sug.lat, lng: sug.lng, label: sug.name })
+    if (sug.placeId && !sug.lat) {
+      const coords = await getPlaceCoords(sug.placeId)
+      if (coords) setDropPos({ lat: coords.lat, lng: coords.lng, label: sug.name })
+    } else if (sug.lat && sug.lng) setDropPos({ lat: sug.lat, lng: sug.lng, label: sug.name })
     setDropSugs([]); setShowDropSugs(false)
   }
 
