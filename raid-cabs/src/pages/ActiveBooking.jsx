@@ -48,10 +48,7 @@ function PinEntry({ onVerified }) {
     const n = [...pin]; n[i] = v; setPin(n)
     setError('')
     if (v && i < 3) refs.current[i+1]?.focus()
-    if (v && i === 3) {
-      // All 4 entered — auto-verify
-      verifyPin([...n].join(''))
-    }
+    if (v && i === 3) verifyPin([...n].join(''))
   }
 
   const onKey = (i, e) => {
@@ -143,14 +140,6 @@ function PinEntry({ onVerified }) {
   )
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Returns minutes from now until the scheduled pickup time (minimum 1). */
-function etaFromScheduled(scheduledAt) {
-  const diffMs = new Date(scheduledAt).getTime() - Date.now()
-  return Math.max(1, Math.round(diffMs / 60_000))
-}
-
 // ── Main Page ──────────────────────────────────────────────────────────────
 const UPI_ID = import.meta.env.VITE_UPI_ID || 'raidcabs@upi'
 
@@ -172,6 +161,9 @@ export default function ActiveBooking() {
   const [pinVerified,  setPinVerified]= useState(false)
   const [startingRide, setStarting]  = useState(false)
 
+  // Guard so we only start the countdown once per link-share event
+  const countdownStartedRef = useRef(false)
+
   const loadBooking = useCallback(async () => {
     if (!user) return
     let data, error
@@ -179,7 +171,6 @@ export default function ActiveBooking() {
     if (paramId) {
       ({ data, error } = await supabase.from('bookings').select('*,drivers(*)').eq('id', paramId).maybeSingle())
     } else {
-      // Load most recent active booking
       const res = await supabase.from('bookings')
         .select('*,drivers(*)')
         .eq('user_id', user.id)
@@ -196,23 +187,35 @@ export default function ActiveBooking() {
     setBooking(data)
     setDriver(data.drivers || null)
 
-    if (data.status === 'in_progress') setPinVerified(true) // already started
-
-    if (data.status === 'confirmed') {
-      // Use scheduled time for realistic ETA
-      const minsToPickup = data.scheduled_at
-        ? etaFromScheduled(data.scheduled_at)
-        : parseInt(data.eta_pickup) || 10
-      setCountdown(minsToPickup * 60)
+    if (data.status === 'in_progress') {
+      setPinVerified(true)
+      // If ride already in progress, mark countdown guard so it won't fire
+      countdownStartedRef.current = true
     }
+
     if (data.status === 'completed' && !data.user_rating) {
       const dismissed = localStorage.getItem(`rating_dismissed_${data.id}`)
       if (!dismissed) setShowRating(true)
     }
+
     setLoading(false)
   }, [user, paramId, navigate])
 
   useEffect(() => { loadBooking() }, [loadBooking])
+
+  // ── Start countdown ONLY when driver shares their live location link ──────
+  // This prevents ETA from resetting on every loadBooking call and ensures
+  // the countdown only starts when the driver is actually heading to pickup.
+  useEffect(() => {
+    if (!booking?.driver_maps_link) return
+    if (countdownStartedRef.current) return
+    if (booking.status !== 'confirmed' && booking.status !== 'en_route') return
+
+    countdownStartedRef.current = true
+    // Use eta_pickup from booking (set by admin at assignment), fallback to 15 mins
+    const mins = parseInt(booking.eta_pickup) || 15
+    setCountdown(mins * 60)
+  }, [booking?.driver_maps_link, booking?.status, booking?.eta_pickup])
 
   // ── Real-time booking status ────────────────────────────────────────────
   useEffect(() => {
@@ -221,6 +224,26 @@ export default function ActiveBooking() {
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'bookings', filter:`id=eq.${booking.id}` },
         ({ new: r }) => {
           setBooking(prev => ({ ...prev, ...r }))
+
+          // When driver shares their maps link for the first time, start ETA
+          if (r.driver_maps_link && !countdownStartedRef.current) {
+            countdownStartedRef.current = true
+            const mins = parseInt(r.eta_pickup) || 15
+            setCountdown(mins * 60)
+            toast('📍 Driver is heading to you!', {
+              duration: 5000,
+              style: {
+                background: '#0d1929',
+                color: '#60a5fa',
+                border: '1px solid rgba(59,130,246,.35)',
+                borderLeft: '3px solid #3b82f6',
+                fontFamily: 'var(--fb)',
+                fontWeight: 700,
+                borderRadius: 10,
+              },
+            })
+          }
+
           if (r.status === 'in_progress') {
             setPinVerified(true)
             setCountdown(null)
@@ -229,7 +252,6 @@ export default function ActiveBooking() {
           if (r.status === 'completed') {
             setCountdown(null)
             toast.success('Trip completed! Please pay and rate your driver.')
-            // Only show rating if not already dismissed for this booking
             const dismissed = localStorage.getItem(`rating_dismissed_${r.id}`)
             if (!dismissed) setShowRating(true)
           }
@@ -242,7 +264,7 @@ export default function ActiveBooking() {
     return () => supabase.removeChannel(ch)
   }, [booking?.id, navigate])
 
-  // ── Real driver GPS tracking — realtime + polling fallback ──────────────
+  // ── Real driver GPS tracking ────────────────────────────────────────────
   useEffect(() => {
     if (!driver?.id) return
     let alive = true
@@ -258,13 +280,9 @@ export default function ActiveBooking() {
       }
     }
 
-    // Fetch immediately
     fetchPos()
-
-    // Poll every 15 seconds as fallback (works even if realtime isn't configured)
     const poll = setInterval(fetchPos, 15000)
 
-    // Also subscribe to realtime for instant updates
     const ch = supabase.channel(`drv-loc-${driver.id}`)
       .on('postgres_changes', {
         event:  'UPDATE',
@@ -285,7 +303,7 @@ export default function ActiveBooking() {
     }
   }, [driver?.id])
 
-  // ── Countdown ───────────────────────────────────────────────────────────
+  // ── Countdown tick ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!countdown || countdown <= 0) return
     const t = setTimeout(() => setCountdown(c => c - 1), 1000)
@@ -296,7 +314,6 @@ export default function ActiveBooking() {
   const handlePinVerified = async () => {
     setStarting(true)
     setPinVerified(true)
-    // Update booking to in_progress
     const { error } = await q(() => supabase.from('bookings')
       .update({ status:'in_progress', started_at: new Date().toISOString() })
       .eq('id', booking.id)
@@ -307,7 +324,6 @@ export default function ActiveBooking() {
       setStarting(false)
       return
     }
-    // Driver's app will detect in_progress via realtime and update their view
     toast.success('Ride started! Your driver is ready.')
     setBooking(b => ({ ...b, status:'in_progress' }))
     setStarting(false)
@@ -336,12 +352,14 @@ export default function ActiveBooking() {
     ? { lat: parseFloat(booking.pickup_lat), lng: parseFloat(booking.pickup_lng) } : null
   const dropPos = booking?.drop_lat && booking?.drop_lng
     ? { lat: parseFloat(booking.drop_lat), lng: parseFloat(booking.drop_lng), label: booking.drop_address || 'Drop Off' } : null
+
   const isCompleted  = booking?.status === 'completed'
   const isInProgress = booking?.status === 'in_progress'
   const isConfirmed  = booking?.status === 'confirmed'
   const isPending    = booking?.status === 'pending_admin'
   const isEnRoute    = booking?.status === 'en_route'
-  const driverArrived= isConfirmed && countdown !== null && countdown <= 0
+  const driverArrived= (isConfirmed || isEnRoute) && countdown !== null && countdown <= 0
+  const hasLink      = !!booking?.driver_maps_link
 
   if (loading) return (
     <div className="main" style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'70vh' }}>
@@ -368,7 +386,12 @@ export default function ActiveBooking() {
             </div>
             <div style={{ flex:1 }}>
               <h1 className="h2" style={{ marginBottom:'.25rem' }}>
-                {isCompleted ? 'Trip Completed' : isInProgress ? 'Ride in Progress' : isPending ? 'Waiting for Admin' : isEnRoute ? 'Driver On The Way' : driverArrived ? 'Driver Arrived!' : 'Ride Confirmed'}
+                {isCompleted   ? 'Trip Completed'      :
+                 isInProgress  ? 'Ride in Progress'    :
+                 isPending     ? 'Waiting for Admin'   :
+                 isEnRoute     ? 'Driver On The Way'   :
+                 driverArrived ? 'Driver Arrived!'     :
+                                 'Ride Confirmed'}
               </h1>
               <span className={`badge ${isCompleted?'b-green':isInProgress?'b-gold':'b-green'}`}>
                 {booking.status.replace('_',' ')}
@@ -376,31 +399,36 @@ export default function ActiveBooking() {
             </div>
           </div>
 
-          {/* En route message */}
-          {isEnRoute && (
-            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
-              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Your driver is on the way</div>
-              <div style={{ fontWeight:700, color:'#3b82f6', fontSize:'.9rem' }}>Watch the map for live location</div>
-            </div>
-          )}
-
-          {/* Pending admin message */}
-          {isPending && (
+          {/* Waiting for driver to share location */}
+          {(isConfirmed || isEnRoute) && !hasLink && (
             <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
-              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Admin is reviewing your booking</div>
-              <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>You'll be notified once a driver is assigned</div>
-              <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.4rem' }}>Scheduled for: {booking?.scheduled_at ? new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
+              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Driver is preparing</div>
+              <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>
+                Waiting for driver to share live location…
+              </div>
+              <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.4rem' }}>
+                ETA countdown will start once driver confirms they are heading to you
+              </div>
             </div>
           )}
 
-          {/* Countdown */}
-          {isConfirmed && countdown !== null && countdown > 0 && (
+          {/* En route / confirmed with link — show countdown */}
+          {(isConfirmed || isEnRoute) && hasLink && countdown !== null && countdown > 0 && (
             <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1.1rem', background:'rgba(34,197,94,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(34,197,94,.15)' }}>
               <div style={{ fontSize:'.7rem', color:'var(--ts)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:'.35rem' }}>Driver Arrives In</div>
               <div style={{ fontFamily:'var(--fd)', fontSize:'clamp(2rem,6vw,3rem)', fontWeight:900, color:'var(--green)', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>
                 {fmtCD(countdown)}
               </div>
               <div style={{ display:'flex', justifyContent:'center', marginTop:'.5rem' }}><span className="dot"/></div>
+            </div>
+          )}
+
+          {/* Pending admin */}
+          {isPending && (
+            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
+              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Admin is reviewing your booking</div>
+              <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>You'll be notified once a driver is assigned</div>
+              <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.4rem' }}>Scheduled for: {booking?.scheduled_at ? new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
             </div>
           )}
         </div>
@@ -447,30 +475,24 @@ export default function ActiveBooking() {
                   )}
                 </div>
 
-                {/* Driver Live Location Link — visible only during confirmed/en_route, not in_progress */}
-                {driver && (isConfirmed || isEnRoute) && booking?.driver_maps_link && (
+                {/* Driver Live Location — confirmed on map */}
+                {(isConfirmed || isEnRoute) && hasLink && (
                   <div style={{
-                    marginTop:'1rem', padding:'.9rem 1rem',
-                    background:'rgba(59,130,246,.07)',
-                    border:'1px solid rgba(59,130,246,.3)',
+                    marginTop:'1rem', padding:'.75rem 1rem',
+                    background: driverPos ? 'rgba(34,197,94,.07)' : 'rgba(59,130,246,.07)',
+                    border:`1px solid ${driverPos ? 'rgba(34,197,94,.25)' : 'rgba(59,130,246,.25)'}`,
                     borderRadius:'var(--rs)',
+                    display:'flex', alignItems:'center', gap:'.6rem',
                   }}>
-                    <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',color:'var(--ts)',marginBottom:'.5rem',display:'flex',alignItems:'center',gap:5}}>
-                      <span style={{width:7,height:7,borderRadius:'50%',background:'#3b82f6',display:'inline-block',animation:'pulse 1.6s infinite'}}/>
-                      Driver Live Location
+                    <span style={{width:9,height:9,borderRadius:'50%',background: driverPos ? '#22c55e' : '#3b82f6',display:'inline-block',animation:'pulse 1.6s infinite',flexShrink:0}}/>
+                    <div>
+                      <div style={{fontSize:'.8rem',fontWeight:700,color: driverPos ? 'var(--green)' : '#60a5fa'}}>
+                        {driverPos ? 'Driver location live on map ↗' : 'Waiting for driver GPS…'}
+                      </div>
+                      <div style={{fontSize:'.72rem',color:'var(--ts)',marginTop:1}}>
+                        {driverPos ? 'See the car icon on the map to the right' : 'Location will appear on map once driver starts moving'}
+                      </div>
                     </div>
-                    <p style={{fontSize:'.8rem',color:'var(--ts)',marginBottom:'.65rem',lineHeight:1.5}}>
-                      Your driver shared their live location. Tap to follow them on Google Maps.
-                    </p>
-                    <a
-                      href={booking.driver_maps_link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-blue w100"
-                      style={{justifyContent:'center',textDecoration:'none',display:'flex',alignItems:'center',gap:6,padding:'.65rem'}}
-                    >
-                      🗺️ Open Driver&apos;s Live Location
-                    </a>
                   </div>
                 )}
               </div>
@@ -515,7 +537,6 @@ export default function ActiveBooking() {
             )}
             {isCompleted && (
               <div style={{ marginTop:'1.25rem' }}>
-                {/* Payment QR */}
                 <div style={{ background:'rgba(34,197,94,.04)', border:'1px solid rgba(34,197,94,.2)', borderRadius:'var(--r)', padding:'1.5rem', textAlign:'center', marginBottom:'1rem' }}>
                   <div style={{ fontFamily:'var(--fd)', fontWeight:700, fontSize:'1rem', marginBottom:'.25rem' }}>Pay Your Fare</div>
                   <div style={{ color:'var(--ts)', fontSize:'.82rem', marginBottom:'1.25rem' }}>
@@ -542,7 +563,7 @@ export default function ActiveBooking() {
             )}
           </div>
 
-          {/* Live Map */}
+          {/* Live Map column */}
           <div style={{ position:'sticky', top:70 }}>
             <LiveMap
               userPos={userPos}
@@ -550,16 +571,36 @@ export default function ActiveBooking() {
               dropPos={dropPos}
               height={440}
               isInRide={isInProgress}
-              liveLabel={driverPos ? "Driver GPS live" : null}
+              liveLabel={driverPos ? 'Driver GPS live' : null}
             />
-            {!driverPos && isConfirmed && (
+
+            {/* Driver live location — status badge below map (no external redirect) */}
+            {(isConfirmed || isEnRoute) && hasLink && (
+              <div style={{
+                marginTop:'.65rem', padding:'.6rem 1rem',
+                background: driverPos ? 'rgba(34,197,94,.08)' : 'rgba(245,166,35,.06)',
+                border:`1px solid ${driverPos ? 'rgba(34,197,94,.22)' : 'rgba(245,166,35,.2)'}`,
+                borderRadius:10,
+                display:'flex', alignItems:'center', gap:'.6rem',
+              }}>
+                <span style={{width:8,height:8,borderRadius:'50%',background: driverPos ? '#22c55e' : '#ffb347',display:'inline-block',animation:'pulse 1.6s infinite',flexShrink:0}}/>
+                <span style={{fontSize:'.78rem',fontWeight:700,color: driverPos ? 'var(--green)' : 'var(--gold)'}}>
+                  {driverPos
+                    ? 'Driver live location shown above — car icon updates every 15s'
+                    : 'Driver is heading to you — GPS will appear on map shortly'}
+                </span>
+              </div>
+            )}
+
+            {/* GPS status messages */}
+            {!driverPos && (isConfirmed || isEnRoute) && (
               <p style={{ fontSize:'.75rem', color:'var(--tm)', textAlign:'center', marginTop:'.6rem' }}>
                 Driver location will appear here once they go online
               </p>
             )}
             {driverPos && (
               <p style={{ fontSize:'.73rem', color:'var(--green)', textAlign:'center', marginTop:'.6rem', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
-                <span className="dot" style={{ width:6, height:6 }}/> Live GPS updating every 5 seconds
+                <span className="dot" style={{ width:6, height:6 }}/> Live GPS updating every 15 seconds
               </p>
             )}
           </div>
@@ -597,7 +638,6 @@ export default function ActiveBooking() {
         {showRating && (
           <RatingPrompt booking={booking} driver={driver} onDone={(rated) => {
             setShowRating(false)
-            // Mark as dismissed so it won't show again on refresh
             if (!rated) localStorage.setItem(`rating_dismissed_${booking.id}`, '1')
           }}/>
         )}
