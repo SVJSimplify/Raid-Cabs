@@ -14,6 +14,7 @@ import ChatWidget from '../components/ChatWidget'
 import RatingPrompt from '../components/RatingPrompt'
 import { Phone, MessageSquare, ArrowLeft, CheckCircle, Clock, MapPin, Navigation, Shield, Lock, KeyRound } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getRouteInfo } from '../lib/location'
 
 const CANCEL_REASONS = [
   'Driver is taking too long',
@@ -204,18 +205,67 @@ export default function ActiveBooking() {
   useEffect(() => { loadBooking() }, [loadBooking])
 
   // ── Start countdown ONLY when driver shares their live location link ──────
-  // This prevents ETA from resetting on every loadBooking call and ensures
-  // the countdown only starts when the driver is actually heading to pickup.
+  // Persists across page refreshes via localStorage.
+  // Calculates real driving time using Google Maps / ORS when possible.
   useEffect(() => {
     if (!booking?.driver_maps_link) return
     if (countdownStartedRef.current) return
     if (booking.status !== 'confirmed' && booking.status !== 'en_route') return
 
-    countdownStartedRef.current = true
-    // Use eta_pickup from booking (set by admin at assignment), fallback to 15 mins
-    const mins = parseInt(booking.eta_pickup) || 15
-    setCountdown(mins * 60)
-  }, [booking?.driver_maps_link, booking?.status, booking?.eta_pickup])
+    const storageKey = `eta_countdown_${booking.id}`
+
+    // ── Restore from localStorage (page was refreshed) ────────────────
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const { startedAt, totalSeconds } = JSON.parse(saved)
+        const elapsed   = Math.floor((Date.now() - startedAt) / 1000)
+        const remaining = totalSeconds - elapsed
+        if (remaining > 30) {
+          // Still meaningful time left — restore without recalculating
+          countdownStartedRef.current = true
+          setCountdown(remaining)
+          return
+        }
+        // Expired — clear and fall through to recalculate
+        localStorage.removeItem(storageKey)
+      }
+    } catch { /* ignore bad localStorage data */ }
+
+    // ── Calculate real driving duration from driver GPS → pickup ──────
+    const startCountdown = (totalSeconds) => {
+      countdownStartedRef.current = true
+      setCountdown(totalSeconds)
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          startedAt:    Date.now(),
+          totalSeconds,
+        }))
+      } catch {}
+    }
+
+    const dPos = driverPos
+    const uPos = userPos
+
+    if (dPos && uPos) {
+      // Real route calculation — async, non-blocking
+      getRouteInfo(dPos, uPos)
+        .then(info => {
+          // tripMins is actual driving time; add small buffer for driver to get ready
+          const mins = Math.max(3, info.tripMins)
+          startCountdown(mins * 60)
+        })
+        .catch(() => {
+          // Fallback if route fails
+          const mins = Math.max(5, parseInt(booking.eta_pickup) || 15)
+          startCountdown(mins * 60)
+        })
+    } else {
+      // No GPS yet — use stored admin ETA as rough estimate
+      const mins = Math.max(5, parseInt(booking.eta_pickup) || 15)
+      startCountdown(mins * 60)
+    }
+  }, [booking?.driver_maps_link, booking?.status, booking?.id, driverPos, userPos])
 
   // ── Real-time booking status ────────────────────────────────────────────
   useEffect(() => {
@@ -228,8 +278,25 @@ export default function ActiveBooking() {
           // When driver shares their maps link for the first time, start ETA
           if (r.driver_maps_link && !countdownStartedRef.current) {
             countdownStartedRef.current = true
-            const mins = parseInt(r.eta_pickup) || 15
-            setCountdown(mins * 60)
+            const storageKey = `eta_countdown_${r.id}`
+            const doStart = (totalSeconds) => {
+              setCountdown(totalSeconds)
+              try {
+                localStorage.setItem(storageKey, JSON.stringify({
+                  startedAt: Date.now(), totalSeconds,
+                }))
+              } catch {}
+            }
+            // Try real route; driverPos may already be in state
+            const dPos = driverPos
+            const uPos = userPos
+            if (dPos && uPos) {
+              getRouteInfo(dPos, uPos)
+                .then(info => doStart(Math.max(3, info.tripMins) * 60))
+                .catch(() => doStart(Math.max(5, parseInt(r.eta_pickup) || 15) * 60))
+            } else {
+              doStart(Math.max(5, parseInt(r.eta_pickup) || 15) * 60)
+            }
             toast('📍 Driver is heading to you!', {
               duration: 5000,
               style: {
@@ -251,11 +318,13 @@ export default function ActiveBooking() {
           }
           if (r.status === 'completed') {
             setCountdown(null)
+            try { localStorage.removeItem(`eta_countdown_${r.id}`) } catch {}
             toast.success('Trip completed! Please pay and rate your driver.')
             const dismissed = localStorage.getItem(`rating_dismissed_${r.id}`)
             if (!dismissed) setShowRating(true)
           }
           if (r.status === 'cancelled') {
+            try { localStorage.removeItem(`eta_countdown_${r.id}`) } catch {}
             toast.error('Booking cancelled')
             navigate('/dashboard')
           }
@@ -325,6 +394,7 @@ export default function ActiveBooking() {
       return
     }
     toast.success('Ride started! Your driver is ready.')
+    try { localStorage.removeItem(`eta_countdown_${booking.id}`) } catch {}
     setBooking(b => ({ ...b, status:'in_progress' }))
     setStarting(false)
   }
@@ -377,58 +447,89 @@ export default function ActiveBooking() {
 
         {/* Status Header */}
         <div className="card mb3" style={{
-          borderColor: isCompleted ? 'rgba(34,197,94,.2)' : isInProgress ? 'rgba(245,166,35,.2)' : 'rgba(34,197,94,.18)',
-          background:  isCompleted ? 'rgba(34,197,94,.04)' : isInProgress ? 'rgba(245,166,35,.04)' : 'rgba(34,197,94,.03)',
+          borderColor: isCompleted  ? 'rgba(34,197,94,.2)'  :
+                       isInProgress ? 'rgba(245,166,35,.2)' :
+                       isPending    ? 'rgba(245,166,35,.18)':
+                                      'rgba(59,130,246,.18)',
+          background:  isCompleted  ? 'rgba(34,197,94,.04)'  :
+                       isInProgress ? 'rgba(245,166,35,.04)' :
+                       isPending    ? 'rgba(245,166,35,.03)' :
+                                      'rgba(59,130,246,.03)',
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:'.85rem' }}>
             <div style={{ fontSize:'2.5rem', flexShrink:0 }}>
-              {isCompleted ? '✓' : isInProgress ? '→' : isPending ? '…' : isEnRoute ? '↗' : driverArrived ? '!' : '✓'}
+              {isCompleted  ? '✓' :
+               isInProgress ? '→' :
+               isPending    ? '⏳' :
+               driverArrived? '🚗' :
+               isEnRoute    ? '↗' :
+                              '🕐'}
             </div>
             <div style={{ flex:1 }}>
               <h1 className="h2" style={{ marginBottom:'.25rem' }}>
-                {isCompleted   ? 'Trip Completed'      :
-                 isInProgress  ? 'Ride in Progress'    :
-                 isPending     ? 'Waiting for Admin'   :
-                 isEnRoute     ? 'Driver On The Way'   :
-                 driverArrived ? 'Driver Arrived!'     :
-                                 'Ride Confirmed'}
+                {isCompleted   ? 'Trip Completed'   :
+                 isInProgress  ? 'Ride in Progress' :
+                 isPending     ? 'Pending'           :
+                 driverArrived ? 'Driver Arrived!'   :
+                                 'Awaiting Pickup'}
               </h1>
-              <span className={`badge ${isCompleted?'b-green':isInProgress?'b-gold':'b-green'}`}>
-                {booking.status.replace('_',' ')}
+              <span className={`badge ${
+                isCompleted   ? 'b-green' :
+                isInProgress  ? 'b-gold'  :
+                isPending     ? 'b-gold'  :
+                driverArrived ? 'b-green' :
+                                'b-blue'
+              }`}>
+                {isCompleted   ? 'Completed'      :
+                 isInProgress  ? 'In Progress'    :
+                 isPending     ? 'Pending'         :
+                 driverArrived ? 'Driver Arrived'  :
+                                 'Awaiting Pickup'}
               </span>
             </div>
           </div>
 
-          {/* Waiting for driver to share location */}
-          {(isConfirmed || isEnRoute) && !hasLink && (
-            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
-              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Driver is preparing</div>
-              <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>
-                Waiting for driver to share live location…
+          {/* Pending — submitted, waiting for admin */}
+          {isPending && (
+            <div style={{ marginTop:'1.25rem', padding:'1rem 1.1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.5rem' }}>
+                <span style={{ width:8, height:8, borderRadius:'50%', background:'var(--gold)', display:'inline-block', animation:'pulse 1.6s infinite', flexShrink:0 }}/>
+                <span style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>Your booking is with admin</span>
               </div>
-              <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.4rem' }}>
-                ETA countdown will start once driver confirms they are heading to you
+              <div style={{ fontSize:'.8rem', color:'var(--ts)', lineHeight:1.6 }}>
+                A driver will be assigned shortly. You'll see updates here in real time.
+              </div>
+              {booking?.scheduled_at && (
+                <div style={{ fontSize:'.77rem', color:'var(--tm)', marginTop:'.5rem' }}>
+                  Scheduled for: <strong style={{ color:'var(--tp)' }}>{new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</strong>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Awaiting Pickup — driver assigned, not yet arrived */}
+          {(isConfirmed || isEnRoute) && !hasLink && (
+            <div style={{ marginTop:'1.25rem', padding:'1rem 1.1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.5rem' }}>
+                <span style={{ width:8, height:8, borderRadius:'50%', background:'#3b82f6', display:'inline-block', animation:'pulse 1.6s infinite', flexShrink:0 }}/>
+                <span style={{ fontWeight:700, color:'#60a5fa', fontSize:'.9rem' }}>Driver assigned — preparing to head over</span>
+              </div>
+              <div style={{ fontSize:'.8rem', color:'var(--ts)', lineHeight:1.6 }}>
+                ETA countdown will start once your driver shares their live location.
               </div>
             </div>
           )}
 
-          {/* En route / confirmed with link — show countdown */}
+          {/* Awaiting Pickup — driver heading over, countdown running */}
           {(isConfirmed || isEnRoute) && hasLink && countdown !== null && countdown > 0 && (
-            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1.1rem', background:'rgba(34,197,94,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(34,197,94,.15)' }}>
+            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1.1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
               <div style={{ fontSize:'.7rem', color:'var(--ts)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:'.35rem' }}>Driver Arrives In</div>
-              <div style={{ fontFamily:'var(--fd)', fontSize:'clamp(2rem,6vw,3rem)', fontWeight:900, color:'var(--green)', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>
+              <div style={{ fontFamily:'var(--fd)', fontSize:'clamp(2rem,6vw,3rem)', fontWeight:900, color:'#60a5fa', fontVariantNumeric:'tabular-nums', lineHeight:1 }}>
                 {fmtCD(countdown)}
               </div>
-              <div style={{ display:'flex', justifyContent:'center', marginTop:'.5rem' }}><span className="dot"/></div>
-            </div>
-          )}
-
-          {/* Pending admin */}
-          {isPending && (
-            <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
-              <div style={{ fontSize:'.72rem', color:'var(--ts)', marginBottom:'.4rem' }}>Admin is reviewing your booking</div>
-              <div style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>You'll be notified once a driver is assigned</div>
-              <div style={{ fontSize:'.75rem', color:'var(--tm)', marginTop:'.4rem' }}>Scheduled for: {booking?.scheduled_at ? new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
+              <div style={{ display:'flex', justifyContent:'center', marginTop:'.5rem' }}>
+                <span style={{ width:8, height:8, borderRadius:'50%', background:'#3b82f6', display:'inline-block', animation:'pulse 1.6s infinite' }}/>
+              </div>
             </div>
           )}
         </div>
