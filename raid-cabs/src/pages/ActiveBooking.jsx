@@ -12,7 +12,7 @@ import LiveMap from '../components/LiveMap'
 import SafetyPanel from '../components/SafetyPanel'
 import ChatWidget from '../components/ChatWidget'
 import RatingPrompt from '../components/RatingPrompt'
-import { Phone, MessageSquare, ArrowLeft, CheckCircle, Clock, MapPin, Navigation, Shield, Lock, KeyRound } from 'lucide-react'
+import { Phone, MessageSquare, ArrowLeft, CheckCircle, Clock, MapPin, Navigation, Shield, Lock, KeyRound, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getRouteInfo } from '../lib/location'
 
@@ -34,6 +34,20 @@ function Stars({ v }) {
       <span style={{ marginLeft:4, fontSize:'.75rem', color:'var(--ts)' }}>{Number(v).toFixed(1)}</span>
     </span>
   )
+}
+
+// ── Status Badge helper ────────────────────────────────────────────────────
+function StatusBadge({ status, driverArrived }) {
+  const map = {
+    pending_admin: { label: 'Pending Admin Review', cls: 'b-gold' },
+    confirmed:     { label: driverArrived ? 'Driver Arrived' : 'Awaiting Pickup', cls: driverArrived ? 'b-green' : 'b-blue' },
+    en_route:      { label: 'Driver En Route', cls: 'b-blue' },
+    in_progress:   { label: 'Ride In Progress', cls: 'b-gold' },
+    completed:     { label: 'Completed', cls: 'b-green' },
+    cancelled:     { label: 'Cancelled', cls: 'b-red' },
+  }
+  const s = map[status] || { label: status, cls: 'b-gold' }
+  return <span className={`badge ${s.cls}`}>{s.label}</span>
 }
 
 // ── PIN Entry Component ────────────────────────────────────────────────────
@@ -165,6 +179,15 @@ export default function ActiveBooking() {
   // Guard so we only start the countdown once per link-share event
   const countdownStartedRef = useRef(false)
 
+  // ── IMPORTANT: userPos and dropPos defined here (before all useEffects)
+  // to avoid "Cannot access before initialization" (TDZ) when they appear
+  // in useEffect dependency arrays below. booking is null on first render
+  // so these safely return null until loadBooking resolves.
+  const userPos = booking?.pickup_lat && booking?.pickup_lng
+    ? { lat: parseFloat(booking.pickup_lat), lng: parseFloat(booking.pickup_lng) } : null
+  const dropPos = booking?.drop_lat && booking?.drop_lng
+    ? { lat: parseFloat(booking.drop_lat), lng: parseFloat(booking.drop_lng), label: booking.drop_address || 'Drop Off' } : null
+
   const loadBooking = useCallback(async () => {
     if (!user) return
     let data, error
@@ -190,7 +213,6 @@ export default function ActiveBooking() {
 
     if (data.status === 'in_progress') {
       setPinVerified(true)
-      // If ride already in progress, mark countdown guard so it won't fire
       countdownStartedRef.current = true
     }
 
@@ -205,8 +227,6 @@ export default function ActiveBooking() {
   useEffect(() => { loadBooking() }, [loadBooking])
 
   // ── Start countdown ONLY when driver shares their live location link ──────
-  // Persists across page refreshes via localStorage.
-  // Calculates real driving time using Google Maps / ORS when possible.
   useEffect(() => {
     if (!booking?.driver_maps_link) return
     if (countdownStartedRef.current) return
@@ -214,7 +234,6 @@ export default function ActiveBooking() {
 
     const storageKey = `eta_countdown_${booking.id}`
 
-    // ── Restore from localStorage (page was refreshed) ────────────────
     try {
       const saved = localStorage.getItem(storageKey)
       if (saved) {
@@ -222,17 +241,14 @@ export default function ActiveBooking() {
         const elapsed   = Math.floor((Date.now() - startedAt) / 1000)
         const remaining = totalSeconds - elapsed
         if (remaining > 30) {
-          // Still meaningful time left — restore without recalculating
           countdownStartedRef.current = true
           setCountdown(remaining)
           return
         }
-        // Expired — clear and fall through to recalculate
         localStorage.removeItem(storageKey)
       }
-    } catch { /* ignore bad localStorage data */ }
+    } catch { /* ignore */ }
 
-    // ── Calculate real driving duration from driver GPS → pickup ──────
     const startCountdown = (totalSeconds) => {
       countdownStartedRef.current = true
       setCountdown(totalSeconds)
@@ -248,22 +264,11 @@ export default function ActiveBooking() {
     const uPos = userPos
 
     if (dPos && uPos) {
-      // Real route calculation — async, non-blocking
       getRouteInfo(dPos, uPos)
-        .then(info => {
-          // tripMins is actual driving time; add small buffer for driver to get ready
-          const mins = Math.max(3, info.tripMins)
-          startCountdown(mins * 60)
-        })
-        .catch(() => {
-          // Fallback if route fails
-          const mins = Math.max(5, parseInt(booking.eta_pickup) || 15)
-          startCountdown(mins * 60)
-        })
+        .then(info => startCountdown(Math.max(3, info.tripMins) * 60))
+        .catch(() => startCountdown(Math.max(5, parseInt(booking.eta_pickup) || 15) * 60))
     } else {
-      // No GPS yet — use stored admin ETA as rough estimate
-      const mins = Math.max(5, parseInt(booking.eta_pickup) || 15)
-      startCountdown(mins * 60)
+      startCountdown(Math.max(5, parseInt(booking.eta_pickup) || 15) * 60)
     }
   }, [booking?.driver_maps_link, booking?.status, booking?.id, driverPos, userPos])
 
@@ -275,7 +280,21 @@ export default function ActiveBooking() {
         ({ new: r }) => {
           setBooking(prev => ({ ...prev, ...r }))
 
-          // When driver shares their maps link for the first time, start ETA
+          if (r.driver_id && !booking.driver_id) {
+            toast('🚗 A driver has been assigned to your ride!', {
+              duration: 6000,
+              style: {
+                background: '#0d1929',
+                color: '#60a5fa',
+                border: '1px solid rgba(59,130,246,.35)',
+                borderLeft: '3px solid #3b82f6',
+                fontFamily: 'var(--fb)',
+                fontWeight: 700,
+                borderRadius: 10,
+              },
+            })
+          }
+
           if (r.driver_maps_link && !countdownStartedRef.current) {
             countdownStartedRef.current = true
             const storageKey = `eta_countdown_${r.id}`
@@ -287,7 +306,6 @@ export default function ActiveBooking() {
                 }))
               } catch {}
             }
-            // Try real route; driverPos may already be in state
             const dPos = driverPos
             const uPos = userPos
             if (dPos && uPos) {
@@ -418,11 +436,6 @@ export default function ActiveBooking() {
     return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`
   }
 
-  const userPos = booking?.pickup_lat && booking?.pickup_lng
-    ? { lat: parseFloat(booking.pickup_lat), lng: parseFloat(booking.pickup_lng) } : null
-  const dropPos = booking?.drop_lat && booking?.drop_lng
-    ? { lat: parseFloat(booking.drop_lat), lng: parseFloat(booking.drop_lng), label: booking.drop_address || 'Drop Off' } : null
-
   const isCompleted  = booking?.status === 'completed'
   const isInProgress = booking?.status === 'in_progress'
   const isConfirmed  = booking?.status === 'confirmed'
@@ -430,6 +443,7 @@ export default function ActiveBooking() {
   const isEnRoute    = booking?.status === 'en_route'
   const driverArrived= (isConfirmed || isEnRoute) && countdown !== null && countdown <= 0
   const hasLink      = !!booking?.driver_maps_link
+  const driverAssigned = !!booking?.driver_id
 
   if (loading) return (
     <div className="main" style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'70vh' }}>
@@ -438,6 +452,17 @@ export default function ActiveBooking() {
   )
   if (!booking) return null
 
+  // ── Status card config ──────────────────────────────────────────────────
+  const statusConfig = (() => {
+    if (isCompleted)   return { emoji:'✓', title:'Trip Completed',    border:'rgba(34,197,94,.2)',  bg:'rgba(34,197,94,.04)' }
+    if (isInProgress)  return { emoji:'→', title:'Ride In Progress',  border:'rgba(245,166,35,.2)', bg:'rgba(245,166,35,.04)' }
+    if (driverArrived) return { emoji:'🚗', title:'Driver Has Arrived!',border:'rgba(34,197,94,.25)',bg:'rgba(34,197,94,.05)' }
+    if (isEnRoute)     return { emoji:'↗', title:'Driver En Route',   border:'rgba(59,130,246,.2)', bg:'rgba(59,130,246,.03)' }
+    if (isConfirmed)   return { emoji:'🕐', title:'Awaiting Pickup',   border:'rgba(59,130,246,.2)', bg:'rgba(59,130,246,.03)' }
+    if (isPending)     return { emoji:'⏳', title:'Pending Admin Review', border:'rgba(245,166,35,.18)', bg:'rgba(245,166,35,.03)' }
+    return { emoji:'🚖', title:'Booking', border:'var(--b1)', bg:'transparent' }
+  })()
+
   return (
     <div className="main page-pad">
       <div className="page-inner">
@@ -445,82 +470,114 @@ export default function ActiveBooking() {
           <ArrowLeft size={14}/> Dashboard
         </button>
 
-        {/* Status Header */}
-        <div className="card mb3" style={{
-          borderColor: isCompleted  ? 'rgba(34,197,94,.2)'  :
-                       isInProgress ? 'rgba(245,166,35,.2)' :
-                       isPending    ? 'rgba(245,166,35,.18)':
-                                      'rgba(59,130,246,.18)',
-          background:  isCompleted  ? 'rgba(34,197,94,.04)'  :
-                       isInProgress ? 'rgba(245,166,35,.04)' :
-                       isPending    ? 'rgba(245,166,35,.03)' :
-                                      'rgba(59,130,246,.03)',
-        }}>
+        {/* ── Status Header ─────────────────────────────────────────────── */}
+        <div className="card mb3" style={{ borderColor: statusConfig.border, background: statusConfig.bg }}>
           <div style={{ display:'flex', alignItems:'center', gap:'.85rem' }}>
-            <div style={{ fontSize:'2.5rem', flexShrink:0 }}>
-              {isCompleted  ? '✓' :
-               isInProgress ? '→' :
-               isPending    ? '⏳' :
-               driverArrived? '🚗' :
-               isEnRoute    ? '↗' :
-                              '🕐'}
-            </div>
+            <div style={{ fontSize:'2.5rem', flexShrink:0 }}>{statusConfig.emoji}</div>
             <div style={{ flex:1 }}>
-              <h1 className="h2" style={{ marginBottom:'.25rem' }}>
-                {isCompleted   ? 'Trip Completed'   :
-                 isInProgress  ? 'Ride in Progress' :
-                 isPending     ? 'Pending'           :
-                 driverArrived ? 'Driver Arrived!'   :
-                                 'Awaiting Pickup'}
-              </h1>
-              <span className={`badge ${
-                isCompleted   ? 'b-green' :
-                isInProgress  ? 'b-gold'  :
-                isPending     ? 'b-gold'  :
-                driverArrived ? 'b-green' :
-                                'b-blue'
-              }`}>
-                {isCompleted   ? 'Completed'      :
-                 isInProgress  ? 'In Progress'    :
-                 isPending     ? 'Pending'         :
-                 driverArrived ? 'Driver Arrived'  :
-                                 'Awaiting Pickup'}
-              </span>
+              <h1 className="h2" style={{ marginBottom:'.25rem' }}>{statusConfig.title}</h1>
+              <StatusBadge status={booking.status} driverArrived={driverArrived}/>
             </div>
           </div>
 
-          {/* Pending — submitted, waiting for admin */}
+          {/* ── PENDING ADMIN: waiting for admin to approve & assign driver ── */}
           {isPending && (
-            <div style={{ marginTop:'1.25rem', padding:'1rem 1.1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.5rem' }}>
-                <span style={{ width:8, height:8, borderRadius:'50%', background:'var(--gold)', display:'inline-block', animation:'pulse 1.6s infinite', flexShrink:0 }}/>
-                <span style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>Your booking is with admin</span>
+            <div style={{ marginTop:'1.25rem' }}>
+              {/* Step indicators */}
+              <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:'1rem' }}>
+                {[
+                  { done: true,  label: 'Submitted' },
+                  { done: false, label: 'Admin Review' },
+                  { done: false, label: 'Driver Assigned' },
+                  { done: false, label: 'Pickup' },
+                ].map((step, i, arr) => (
+                  <div key={step.label} style={{ display:'flex', alignItems:'center', flex: i < arr.length - 1 ? 1 : 0 }}>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:60 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                        background: step.done ? 'linear-gradient(135deg,var(--gold),var(--orange))' : i === 1 ? 'rgba(245,166,35,.15)' : 'rgba(255,255,255,.06)',
+                        border: step.done ? 'none' : i === 1 ? '1.5px solid rgba(245,166,35,.5)' : '1.5px solid rgba(255,255,255,.1)',
+                        color: step.done ? '#0a0a0f' : i === 1 ? 'var(--gold)' : 'var(--tm)',
+                        fontSize: '.75rem', fontWeight: 800,
+                      }}>
+                        {step.done ? '✓' : i + 1}
+                      </div>
+                      <div style={{ fontSize:'.62rem', color: step.done ? 'var(--gold)' : i === 1 ? 'var(--gold)' : 'var(--tm)', textAlign:'center', fontWeight: i <= 1 ? 700 : 400 }}>
+                        {step.label}
+                      </div>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div style={{ flex:1, height:2, background: step.done ? 'rgba(245,166,35,.4)' : 'rgba(255,255,255,.08)', margin:'0 2px', marginBottom:20 }}/>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize:'.8rem', color:'var(--ts)', lineHeight:1.6 }}>
-                A driver will be assigned shortly. You'll see updates here in real time.
-              </div>
-              {booking?.scheduled_at && (
-                <div style={{ fontSize:'.77rem', color:'var(--tm)', marginTop:'.5rem' }}>
-                  Scheduled for: <strong style={{ color:'var(--tp)' }}>{new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</strong>
+
+              <div style={{ padding:'1rem 1.1rem', background:'rgba(245,166,35,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(245,166,35,.15)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.5rem' }}>
+                  <span style={{ width:8, height:8, borderRadius:'50%', background:'var(--gold)', display:'inline-block', animation:'pulse 1.6s infinite', flexShrink:0 }}/>
+                  <span style={{ fontWeight:700, color:'var(--gold)', fontSize:'.9rem' }}>Waiting for admin to assign a driver</span>
                 </div>
-              )}
+                <div style={{ fontSize:'.8rem', color:'var(--ts)', lineHeight:1.6 }}>
+                  Your booking is under review. Admin will assign an available driver shortly — you'll see updates here in real time.
+                </div>
+                {booking?.scheduled_at && (
+                  <div style={{ fontSize:'.77rem', color:'var(--tm)', marginTop:'.5rem' }}>
+                    Scheduled for: <strong style={{ color:'var(--tp)' }}>{new Date(booking.scheduled_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</strong>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Awaiting Pickup — driver assigned, not yet arrived */}
+          {/* ── CONFIRMED: driver assigned, hasn't shared live link yet ── */}
           {(isConfirmed || isEnRoute) && !hasLink && (
-            <div style={{ marginTop:'1.25rem', padding:'1rem 1.1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.5rem' }}>
-                <span style={{ width:8, height:8, borderRadius:'50%', background:'#3b82f6', display:'inline-block', animation:'pulse 1.6s infinite', flexShrink:0 }}/>
-                <span style={{ fontWeight:700, color:'#60a5fa', fontSize:'.9rem' }}>Driver assigned — preparing to head over</span>
+            <div style={{ marginTop:'1.25rem' }}>
+              {/* Step indicators */}
+              <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:'1rem' }}>
+                {[
+                  { done: true,  label: 'Submitted' },
+                  { done: true,  label: 'Approved' },
+                  { done: false, label: 'Driver Heading Over' },
+                  { done: false, label: 'Pickup' },
+                ].map((step, i, arr) => (
+                  <div key={step.label} style={{ display:'flex', alignItems:'center', flex: i < arr.length - 1 ? 1 : 0 }}>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:60 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                        background: step.done ? 'linear-gradient(135deg,var(--gold),var(--orange))' : i === 2 ? 'rgba(59,130,246,.15)' : 'rgba(255,255,255,.06)',
+                        border: step.done ? 'none' : i === 2 ? '1.5px solid rgba(59,130,246,.5)' : '1.5px solid rgba(255,255,255,.1)',
+                        color: step.done ? '#0a0a0f' : i === 2 ? '#60a5fa' : 'var(--tm)',
+                        fontSize: '.75rem', fontWeight: 800,
+                      }}>
+                        {step.done ? '✓' : i + 1}
+                      </div>
+                      <div style={{ fontSize:'.62rem', color: step.done ? 'var(--gold)' : i === 2 ? '#60a5fa' : 'var(--tm)', textAlign:'center', fontWeight: step.done || i === 2 ? 700 : 400 }}>
+                        {step.label}
+                      </div>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div style={{ flex:1, height:2, background: step.done ? 'rgba(245,166,35,.4)' : 'rgba(255,255,255,.08)', margin:'0 2px', marginBottom:20 }}/>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize:'.8rem', color:'var(--ts)', lineHeight:1.6 }}>
-                ETA countdown will start once your driver shares their live location.
+
+              <div style={{ padding:'1rem 1.1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'.6rem', marginBottom:'.5rem' }}>
+                  <span style={{ width:8, height:8, borderRadius:'50%', background:'#3b82f6', display:'inline-block', animation:'pulse 1.6s infinite', flexShrink:0 }}/>
+                  <span style={{ fontWeight:700, color:'#60a5fa', fontSize:'.9rem' }}>
+                    Booking approved — driver preparing to head over
+                  </span>
+                </div>
+                <div style={{ fontSize:'.8rem', color:'var(--ts)', lineHeight:1.6 }}>
+                  ETA countdown will begin once your driver shares their live location. You'll receive a notification.
+                </div>
               </div>
             </div>
           )}
 
-          {/* Awaiting Pickup — driver heading over, countdown running */}
+          {/* ── Countdown banner ── */}
           {(isConfirmed || isEnRoute) && hasLink && countdown !== null && countdown > 0 && (
             <div style={{ marginTop:'1.25rem', textAlign:'center', padding:'1.1rem', background:'rgba(59,130,246,.06)', borderRadius:'var(--rs)', border:'1px solid rgba(59,130,246,.15)' }}>
               <div style={{ fontSize:'.7rem', color:'var(--ts)', textTransform:'uppercase', letterSpacing:'.08em', marginBottom:'.35rem' }}>Driver Arrives In</div>
@@ -529,6 +586,20 @@ export default function ActiveBooking() {
               </div>
               <div style={{ display:'flex', justifyContent:'center', marginTop:'.5rem' }}>
                 <span style={{ width:8, height:8, borderRadius:'50%', background:'#3b82f6', display:'inline-block', animation:'pulse 1.6s infinite' }}/>
+              </div>
+              <div style={{ fontSize:'.75rem', color:'var(--ts)', marginTop:'.5rem' }}>
+                Awaiting pickup at {booking.pickup_address?.split(',')[0] || 'your location'}
+              </div>
+            </div>
+          )}
+
+          {/* ── Driver arrived banner ── */}
+          {driverArrived && !pinVerified && (
+            <div style={{ marginTop:'1.25rem', padding:'1rem', background:'rgba(34,197,94,.07)', border:'1px solid rgba(34,197,94,.25)', borderRadius:'var(--rs)', textAlign:'center' }}>
+              <div style={{ fontSize:'1.5rem', marginBottom:'.35rem' }}>🚗</div>
+              <div style={{ fontWeight:700, color:'var(--green)', fontSize:'.95rem' }}>Your driver is here!</div>
+              <div style={{ fontSize:'.78rem', color:'var(--ts)', marginTop:'.25rem' }}>
+                Enter your Ride PIN below to begin the trip
               </div>
             </div>
           )}
@@ -576,7 +647,7 @@ export default function ActiveBooking() {
                   )}
                 </div>
 
-                {/* Driver Live Location — confirmed on map */}
+                {/* Driver Live Location status */}
                 {(isConfirmed || isEnRoute) && hasLink && (
                   <div style={{
                     marginTop:'1rem', padding:'.75rem 1rem',
@@ -588,14 +659,25 @@ export default function ActiveBooking() {
                     <span style={{width:9,height:9,borderRadius:'50%',background: driverPos ? '#22c55e' : '#3b82f6',display:'inline-block',animation:'pulse 1.6s infinite',flexShrink:0}}/>
                     <div>
                       <div style={{fontSize:'.8rem',fontWeight:700,color: driverPos ? 'var(--green)' : '#60a5fa'}}>
-                        {driverPos ? 'Driver location live on map ↗' : 'Waiting for driver GPS…'}
+                        {driverPos ? 'Driver location live on map ↗' : 'Waiting for driver GPS signal…'}
                       </div>
                       <div style={{fontSize:'.72rem',color:'var(--ts)',marginTop:1}}>
-                        {driverPos ? 'See the car icon on the map to the right' : 'Location will appear on map once driver starts moving'}
+                        {driverPos ? 'Car icon on the map updates every 15 seconds' : 'Will appear on map once driver starts moving'}
                       </div>
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* No driver yet — show placeholder */}
+            {!driver && isPending && (
+              <div className="card mb3" style={{ textAlign:'center', padding:'1.5rem' }}>
+                <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(245,166,35,.08)', border:'1px solid rgba(245,166,35,.15)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto .85rem', fontSize:'1.5rem' }}>⏳</div>
+                <div style={{ fontWeight:700, fontSize:'.9rem', marginBottom:'.35rem' }}>Driver Not Yet Assigned</div>
+                <div style={{ fontSize:'.78rem', color:'var(--ts)', lineHeight:1.6 }}>
+                  Admin is reviewing your booking and will assign an available driver soon.
+                </div>
               </div>
             )}
 
@@ -675,7 +757,6 @@ export default function ActiveBooking() {
               liveLabel={driverPos ? 'Driver GPS live' : null}
             />
 
-            {/* Driver live location — status badge below map (no external redirect) */}
             {(isConfirmed || isEnRoute) && hasLink && (
               <div style={{
                 marginTop:'.65rem', padding:'.6rem 1rem',
@@ -693,7 +774,6 @@ export default function ActiveBooking() {
               </div>
             )}
 
-            {/* GPS status messages */}
             {!driverPos && (isConfirmed || isEnRoute) && (
               <p style={{ fontSize:'.75rem', color:'var(--tm)', textAlign:'center', marginTop:'.6rem' }}>
                 Driver location will appear here once they go online
